@@ -37,6 +37,8 @@ export interface Tournament {
   location: string | null;
   event_at: string | null; // ISO timestamp of the next event, or null if unscheduled
   signups_public: boolean; // whether the full sign-up name list is public
+  show_sponsor: boolean; // show Antara Freediving credit in the footer
+  show_venue: boolean; // show host/venue credit in the footer
   updated_at: string;
 }
 

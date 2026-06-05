@@ -1,13 +1,16 @@
 // app/history/page.tsx
 "use client";
 import { useEffect, useState } from "react";
-import { listHistory, setHistoryVisible, subscribeHistory } from "@/lib/supabase";
+import { deleteHistory, listHistory, setHistoryVisible, subscribeHistory } from "@/lib/supabase";
 import { sharePodium } from "@/lib/share";
+import { aggregate } from "@/lib/leaderboard";
 import type { HistoryEntry } from "@/lib/types";
 
 const UNLOCK_KEY = "swiss_admin_unlocked";
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 const MEDALS = ["🥇", "🥈", "🥉"];
+// Deleting history is destructive — only exposed when running locally (dev).
+const IS_DEV = process.env.NODE_ENV !== "production";
 
 function fmtDate(iso: string | null): string {
   if (!iso) return "";
@@ -20,6 +23,7 @@ export default function HistoryPage() {
   const [entries, setEntries] = useState<HistoryEntry[] | null>(null);
   const [isOrganizer, setIsOrganizer] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [mode, setMode] = useState<"events" | "alltime">("events");
 
   const refresh = async () => setEntries(await listHistory());
   useEffect(() => {
@@ -41,6 +45,12 @@ export default function HistoryPage() {
     refresh();
   };
 
+  const onDelete = async (e: HistoryEntry) => {
+    if (!confirm(`Delete "${e.title}" from history? This cannot be undone.`)) return;
+    await deleteHistory(e.id);
+    refresh();
+  };
+
   const header = <div className="mast"><span className="title">Past tournaments</span></div>;
 
   if (entries === null) return <>{header}<div className="empty">Loading…</div></>;
@@ -50,9 +60,65 @@ export default function HistoryPage() {
     return <>{header}<div className="empty">No finished tournaments yet.<br />They appear here once a tournament ends.</div></>;
   }
 
+  const tab = (key: "events" | "alltime", label: string) => (
+    <button
+      onClick={() => setMode(key)}
+      className="num"
+      style={{
+        flex: 1, minHeight: 40, borderRadius: 8, border: "1px solid var(--line)",
+        background: mode === key ? "var(--accent)" : "transparent",
+        color: mode === key ? "#0b0d10" : "var(--ink-soft)", fontWeight: mode === key ? 800 : 600,
+        textTransform: "uppercase", letterSpacing: ".06em", fontSize: 12,
+      }}
+    >{label}</button>
+  );
+
+  const segmented = (
+    <div className="row" style={{ gap: 8, margin: "8px 0 16px" }}>
+      {tab("events", "Past events")}
+      {tab("alltime", "All-time")}
+    </div>
+  );
+
+  if (mode === "alltime") {
+    const board = aggregate(shown);
+    return (
+      <>
+        {header}
+        {segmented}
+        <p className="muted" style={{ marginBottom: 10 }}>Across {shown.length} event{shown.length === 1 ? "" : "s"} · ranked by wins.</p>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 15 }}>
+            <thead>
+              <tr className="num" style={{ color: "var(--ink-dim)", fontSize: 11 }}>
+                <th style={{ textAlign: "right", padding: 8 }}>#</th>
+                <th style={{ textAlign: "left", padding: 8 }}>Player</th>
+                <th style={{ padding: 8 }}>🥇</th><th style={{ padding: 8 }}>Podiums</th>
+                <th style={{ padding: 8 }}>Events</th><th style={{ padding: 8 }}>Pts</th>
+              </tr>
+            </thead>
+            <tbody>
+              {board.map((r, i) => (
+                <tr key={r.name} style={{ borderTop: "1px solid var(--line)" }}>
+                  <td className="num" style={{ textAlign: "right", padding: 8, color: "var(--accent)" }}>{i + 1}</td>
+                  <td style={{ padding: 8, fontWeight: i === 0 ? 800 : 500 }}>{r.name}</td>
+                  <td className="num" style={{ textAlign: "center", padding: 8, fontWeight: 800, color: "var(--accent)" }}>{r.wins}</td>
+                  <td className="num" style={{ textAlign: "center", padding: 8, color: "var(--ink-soft)" }}>{r.podiums}</td>
+                  <td className="num" style={{ textAlign: "center", padding: 8, color: "var(--ink-soft)" }}>{r.events}</td>
+                  <td className="num" style={{ textAlign: "center", padding: 8, color: "var(--ink-soft)" }}>{r.points % 1 === 0 ? r.points : r.points.toFixed(1)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       {header}
+      {segmented}
       {!isOrganizer && <p className="muted" style={{ marginBottom: 12 }}>Champions of past events.</p>}
       <div className="stack" style={{ gap: 14 }}>
         {shown.map((e) => {
@@ -106,6 +172,7 @@ export default function HistoryPage() {
                   </button>
                 )}
                 <button className="btn grow" onClick={() => sharePodium(e)}>↗ Share</button>
+                {IS_DEV && <button className="btn danger" onClick={() => onDelete(e)}>Delete</button>}
               </div>
             </div>
           );

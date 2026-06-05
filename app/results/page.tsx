@@ -5,7 +5,9 @@ import { getTournament, listSignups, subscribeTournament } from "@/lib/supabase"
 import { allDone, deriveData, roundComplete, standings } from "@/lib/swiss";
 import type { Tournament } from "@/lib/types";
 import { csvFilename, downloadText, tournamentCsv } from "@/lib/export";
+import { SPONSOR } from "@/lib/sponsor";
 import { StatusPill } from "@/components/StatusPill";
+import { MyMatch } from "@/components/MyMatch";
 import { StandingsTable } from "@/components/StandingsTable";
 import { PairingBoard } from "@/components/PairingBoard";
 import { RoundNav } from "@/components/RoundNav";
@@ -56,9 +58,11 @@ export default function ResultsPage() {
         <div className="finished">
           <span className="kicker label">Tournament finished</span>
           <div className="win">🏆 {rows[0].name}</div>
-          <div className="muted" style={{ marginTop: 4 }}>champion</div>
+          <div className="muted" style={{ marginTop: 4 }}>champion{t.show_sponsor ? ` · Organized by ${SPONSOR.name}` : ""}</div>
         </div>
       )}
+
+      <MyMatch t={t} />
 
       <h2 className="section">Pairings</h2>
       <RoundNav count={t.state.schedule.length} current={view} done={(i) => roundComplete(t.state, i)} onPick={setView} />

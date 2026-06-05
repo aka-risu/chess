@@ -7,8 +7,9 @@
 // fall back to drawing a simple card from scratch.
 // Browser-only: every function is a safe no-op outside the DOM.
 import type { HistoryEntry } from "./types";
+import { SPONSOR } from "./sponsor";
 
-const TEMPLATE_SRC = "/podium-template.png";
+export const TEMPLATE_SRC = "/podium-template.png";
 
 const fmtNum = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -17,27 +18,44 @@ const MEDALS = ["🥇", "🥈", "🥉"];
 
 // Anchor positions for each plaque, as FRACTIONS of the image width/height so
 // they scale to whatever size the template is. Index 0 = 1st (centre plaque),
-// 1 = 2nd (left), 2 = 3rd (right). Tune these to match the artwork.
-interface Slot {
+// 1 = 2nd (left), 2 = 3rd (right). Tune these with /podium-tuner.
+export interface Slot {
   nameX: number; nameY: number; nameMaxW: number; nameSize: number;
   ptsX: number; ptsY: number; ptsSize: number;
   color: string;
 }
-const SLOTS: Slot[] = [
+export const SLOTS: Slot[] = [
   // 1st — centre, cream/gold plaque → dark brown text
-  { nameX: 0.500, nameY: 0.638, nameMaxW: 0.235, nameSize: 0.033, ptsX: 0.500, ptsY: 0.792, ptsSize: 0.040, color: "#4a3210" },
+  { nameX: 0.504, nameY: 0.702, nameMaxW: 0.235, nameSize: 0.031, ptsX: 0.502, ptsY: 0.804, ptsSize: 0.04, color: "#4a3210" },
   // 2nd — left, light silver plaque → dark navy text
-  { nameX: 0.205, nameY: 0.660, nameMaxW: 0.200, nameSize: 0.026, ptsX: 0.205, ptsY: 0.812, ptsSize: 0.034, color: "#26354e" },
+  { nameX: 0.212, nameY: 0.703, nameMaxW: 0.2, nameSize: 0.031, ptsX: 0.21, ptsY: 0.799, ptsSize: 0.034, color: "#26354e" },
   // 3rd — right, light bronze plaque → dark brown text
-  { nameX: 0.792, nameY: 0.665, nameMaxW: 0.200, nameSize: 0.026, ptsX: 0.792, ptsY: 0.815, ptsSize: 0.034, color: "#4d2c18" },
+  { nameX: 0.791, nameY: 0.717, nameMaxW: 0.2, nameSize: 0.026, ptsX: 0.788, ptsY: 0.81, ptsSize: 0.034, color: "#4d2c18" },
 ];
 
-function loadImage(src: string): Promise<HTMLImageElement> {
+export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
     img.onerror = reject;
     img.src = src;
+  });
+}
+
+/** Draw the name + points overlays onto an already-painted template canvas. */
+export function drawSlots(
+  ctx: CanvasRenderingContext2D, W: number, H: number, entry: HistoryEntry, slots: Slot[],
+): void {
+  ctx.textAlign = "center";
+  const podium = entry.standings.slice(0, 3);
+  slots.forEach((s, i) => {
+    const p = podium[i];
+    if (!p) return;
+    ctx.fillStyle = s.color;
+    ctx.font = `800 ${Math.round(H * s.nameSize)}px Inter, system-ui, sans-serif`;
+    ctx.fillText(truncate(ctx, p.name.toUpperCase(), W * s.nameMaxW), W * s.nameX, H * s.nameY);
+    ctx.font = `800 ${Math.round(H * s.ptsSize)}px ui-monospace, Menlo, monospace`;
+    ctx.fillText(fmtNum(p.score), W * s.ptsX, H * s.ptsY);
   });
 }
 
@@ -55,18 +73,7 @@ async function templateBlob(entry: HistoryEntry): Promise<Blob | null> {
   if (!ctx) return null;
 
   ctx.drawImage(img, 0, 0, W, H);
-  ctx.textAlign = "center";
-
-  const podium = entry.standings.slice(0, 3);
-  SLOTS.forEach((s, i) => {
-    const p = podium[i];
-    if (!p) return;
-    ctx.fillStyle = s.color;
-    ctx.font = `800 ${Math.round(H * s.nameSize)}px Inter, system-ui, sans-serif`;
-    ctx.fillText(truncate(ctx, p.name.toUpperCase(), W * s.nameMaxW), W * s.nameX, H * s.nameY);
-    ctx.font = `800 ${Math.round(H * s.ptsSize)}px ui-monospace, Menlo, monospace`;
-    ctx.fillText(fmtNum(p.score), W * s.ptsX, H * s.ptsY);
-  });
+  drawSlots(ctx, W, H, entry, SLOTS);
 
   return await new Promise((resolve) => canvas.toBlob((b) => resolve(b), "image/png"));
 }
@@ -164,7 +171,10 @@ function podiumText(entry: HistoryEntry): string {
   const medals = entry.standings.slice(0, 3)
     .map((p, i) => `${MEDALS[i]} ${p.name} (${fmtNum(p.score)})`)
     .join("\n");
-  return `🏆 ${entry.title}\n${medals}`;
+  const org = `Organized by ${SPONSOR.name}${SPONSOR.venue.name ? ` · Hosted at ${SPONSOR.venue.name}` : ""}`;
+  const lines = [`🏆 ${entry.title}`, medals, "", org, SPONSOR.siteLabel];
+  if (SPONSOR.discountCode) lines.push(`${SPONSOR.discountText} — code ${SPONSOR.discountCode}`);
+  return lines.join("\n");
 }
 
 /** Build the podium PNG (template overlay if available, else drawn card). */
@@ -178,7 +188,8 @@ export async function sharePodium(entry: HistoryEntry): Promise<void> {
   if (typeof navigator === "undefined") return;
   const blob = await podiumImageBlob(entry);
   const slug = (entry.title || "tournament").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-  const filename = `${slug || "tournament"}-podium.png`;
+  // Unique suffix so repeated downloads don't collide / show a stale cached file.
+  const filename = `${slug || "tournament"}-podium-${Date.now()}.png`;
   const text = podiumText(entry);
 
   if (blob) {

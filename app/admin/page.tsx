@@ -12,6 +12,7 @@ import { csvFilename, downloadText, tournamentCsv } from "@/lib/export";
 import { StatusPill } from "@/components/StatusPill";
 import { PairingBoard } from "@/components/PairingBoard";
 import { RoundNav } from "@/components/RoundNav";
+import { SignupQR } from "@/components/SignupQR";
 
 const PASS = process.env.NEXT_PUBLIC_ORGANIZER_PASSCODE;
 const UNLOCK_KEY = "swiss_admin_unlocked";
@@ -72,6 +73,11 @@ export default function AdminPage() {
       </>
     );
   }
+  const logout = () => { sessionStorage.removeItem(UNLOCK_KEY); setUnlocked(false); setPass(""); };
+  // Fire-and-forget settings saves: surface failures (e.g. missing DB column) instead of crashing.
+  const save = (patch: Parameters<typeof saveTournament>[0]) =>
+    saveTournament(patch).catch((err: unknown) => alert(err instanceof Error ? err.message : String(err)));
+
   if (!t) return <div className="empty">Loading…</div>;
   const nameOf = (id: string) => t.state.players.find((p) => p.id === id)?.name ?? "?";
 
@@ -90,7 +96,13 @@ export default function AdminPage() {
     };
     return (
       <>
-        <div className="mast"><span className="title">{t.title}</span><StatusPill status="setup" /></div>
+        <div className="mast">
+          <span className="title">{t.title}</span>
+          <span className="row" style={{ gap: 8 }}>
+            <StatusPill status="setup" />
+            <button className="pill" onClick={logout}>Log out</button>
+          </span>
+        </div>
         <h2 className="section">Who showed up?</h2>
         <p className="muted">Select attendees from the sign-up list ({n} selected · need 7–16).</p>
         <div className="stack" style={{ margin: "14px 0" }}>
@@ -105,6 +117,8 @@ export default function AdminPage() {
           ))}
           {signups.length === 0 && <div className="empty">No sign-ups yet.</div>}
         </div>
+
+        <div style={{ marginBottom: 12 }}><SignupQR /></div>
 
         <div className="card stack">
           <label className="kicker">Add a player manually</label>
@@ -121,21 +135,33 @@ export default function AdminPage() {
 
         <div className="card stack" style={{ marginTop: 12 }}>
           <label className="kicker">Tournament name</label>
-          <input type="text" value={t.title} maxLength={40} onChange={(e) => saveTournament({ title: e.target.value })} />
+          <input type="text" value={t.title} maxLength={40} onChange={(e) => save({ title: e.target.value })} />
           <label className="kicker">Location</label>
           <input type="text" placeholder="The office, Koh Tao" value={t.location ?? ""}
-            onChange={(e) => saveTournament({ location: e.target.value })} />
+            onChange={(e) => save({ location: e.target.value })} />
           <label className="kicker">Date &amp; time</label>
           <input type="datetime-local" value={toLocalInput(t.event_at)}
-            onChange={(e) => saveTournament({ event_at: fromLocalInput(e.target.value) })} />
+            onChange={(e) => save({ event_at: fromLocalInput(e.target.value) })} />
           <label className="kicker">Rounds (suggested {recommendedRounds(n)})</label>
           <input type="number" min={1} max={Math.max(1, n - 1) || 15} value={t.rounds}
-            onChange={(e) => saveTournament({ rounds: clampRounds(Number(e.target.value), n || 16) })} />
+            onChange={(e) => save({ rounds: clampRounds(Number(e.target.value), n || 16) })} />
           <label className="row" style={{ gap: 10, marginTop: 4 }}>
             <input type="checkbox" checked={t.signups_public}
-              onChange={(e) => saveTournament({ signups_public: e.target.checked })}
+              onChange={(e) => save({ signups_public: e.target.checked })}
               style={{ width: 22, height: 22 }} />
             <span>Show sign-up names publicly <span className="muted">(off = public sees only a count)</span></span>
+          </label>
+          <label className="row" style={{ gap: 10 }}>
+            <input type="checkbox" checked={t.show_sponsor}
+              onChange={(e) => save({ show_sponsor: e.target.checked })}
+              style={{ width: 22, height: 22 }} />
+            <span>Show Antara Freediving info <span className="muted">(footer & credits)</span></span>
+          </label>
+          <label className="row" style={{ gap: 10 }}>
+            <input type="checkbox" checked={t.show_venue}
+              onChange={(e) => save({ show_venue: e.target.checked })}
+              style={{ width: 22, height: 22 }} />
+            <span>Show host venue info <span className="muted">(footer logo & link)</span></span>
           </label>
         </div>
         <button className="btn block amber" style={{ marginTop: 16 }} disabled={n < 7 || n > 16} onClick={start}>
@@ -205,7 +231,10 @@ export default function AdminPage() {
     <>
       <div className="mast">
         <span className="title">{t.title}</span>
-        <StatusPill status={t.status} round={t.state.schedule.length} rounds={t.rounds} />
+        <span className="row" style={{ gap: 8 }}>
+          <StatusPill status={t.status} round={t.state.schedule.length} rounds={t.rounds} />
+          <button className="pill" onClick={logout}>Log out</button>
+        </span>
       </div>
       {(t.status === "finished" || done) && rows.length > 0 && (
         <div className="finished">
@@ -238,6 +267,22 @@ export default function AdminPage() {
           <button className="btn block ghost" onClick={finishNow}>End tournament now</button>
         )}
         <button className="btn block danger" onClick={reset}>New tournament</button>
+      </div>
+
+      <div className="card stack" style={{ marginTop: 16 }}>
+        <label className="kicker">Display settings</label>
+        <label className="row" style={{ gap: 10 }}>
+          <input type="checkbox" checked={t.show_sponsor}
+            onChange={(e) => save({ show_sponsor: e.target.checked })}
+            style={{ width: 22, height: 22 }} />
+          <span>Show Antara Freediving info <span className="muted">(footer & credits)</span></span>
+        </label>
+        <label className="row" style={{ gap: 10 }}>
+          <input type="checkbox" checked={t.show_venue}
+            onChange={(e) => save({ show_venue: e.target.checked })}
+            style={{ width: 22, height: 22 }} />
+          <span>Show host venue info <span className="muted">(footer logo & link)</span></span>
+        </label>
       </div>
     </>
   );

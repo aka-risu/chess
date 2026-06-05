@@ -124,19 +124,48 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(198,247,63
 .finished .label { color: var(--accent); }
 .finished .win { font-size: 28px; font-weight: 800; margin-top: 6px; }
 
-/* Chess clock */
-.clock { display: flex; flex-direction: column; gap: 12px; min-height: 70dvh; }
+/* Sponsor footer */
+.sponsor {
+  margin-top: 32px; padding: 22px 16px; border-top: 1px solid var(--line);
+  display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;
+}
+.sponsor .sponsor-logo { height: 40px; width: auto; max-width: 70%; opacity: .95; }
+.sponsor .venue-credit { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 4px; }
+.sponsor .venue-credit .sponsor-logo { height: 58px; max-width: 80%; }
+.sponsor-promo {
+  font-size: 14px; color: var(--ink); background: rgba(212,255,82,.08);
+  border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px;
+}
+.sponsor-promo b { color: var(--accent); font-family: var(--mono); letter-spacing: .05em; }
+.sponsor-links { display: flex; gap: 16px; }
+.sponsor-links a { color: var(--ink-soft); font-size: 13px; text-decoration: none; }
+.sponsor-links a:hover { color: var(--accent); }
+
+/* Event-card sponsor CTA */
+.event .host { margin-top: 12px; font-size: 14px; color: var(--ink-soft); }
+.event .host a { color: var(--accent); text-decoration: none; font-weight: 700; }
+
+/* Chess clock — full-screen when a time control is active */
+.clock {
+  position: fixed; left: 0; right: 0; top: 0;
+  bottom: calc(62px + env(safe-area-inset-bottom)); /* leave the tab bar tappable */
+  z-index: 20;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: max(8px, env(safe-area-inset-top)) 8px 8px;
+  background: var(--bg);
+}
 .clock .side {
-  flex: 1; border: 2px solid var(--line); border-radius: var(--radius);
-  display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px;
+  flex: 1; border: 2px solid var(--line); border-radius: 16px;
+  display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px;
   background: var(--surface); cursor: pointer; user-select: none; -webkit-user-select: none;
   font-family: var(--mono); font-variant-numeric: tabular-nums;
 }
 .clock .side.top { transform: rotate(180deg); }
 .clock .side.active { border-color: var(--accent); background: rgba(212,255,82,.07); }
 .clock .side.flagged { border-color: var(--live); background: rgba(255,90,90,.08); }
-.clock .side .time { font-size: 54px; font-weight: 800; }
-.clock .side .meta { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-dim); }
+.clock .side .time { font-size: clamp(56px, 18vw, 130px); font-weight: 800; line-height: 1; }
+.clock .side .meta { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-dim); }
 .clock .side.active .time { color: var(--accent); }
 .clock .side.flagged .time { color: var(--live); }
-.clock .controls { display: flex; gap: 10px; }
+.clock .controls { display: flex; gap: 8px; }
+.clock .controls .btn { min-height: 44px; }
