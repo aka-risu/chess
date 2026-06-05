@@ -4,9 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const tabs = [
-  { href: "/", label: "Sign up" },
-  { href: "/results", label: "Results" },
-  { href: "/admin", label: "Organizer" },
+  { href: "/", label: "Sign up", ico: "♟" },
+  { href: "/results", label: "Results", ico: "🏆" },
+  { href: "/clock", label: "Clock", ico: "⏱" },
+  { href: "/admin", label: "Organizer", ico: "⚙" },
 ];
 
 export function TabBar() {
@@ -15,6 +16,7 @@ export function TabBar() {
     <nav className="tabbar">
       {tabs.map((t) => (
         <Link key={t.href} href={t.href} className={path === t.href ? "active" : ""}>
+          <span className="ico">{t.ico}</span>
           {t.label}
         </Link>
       ))}

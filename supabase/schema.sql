@@ -7,8 +7,14 @@ create table if not exists tournament (
   rounds      int  not null default 4,
   status      text not null default 'setup',
   state       jsonb not null default '{"players":[],"schedule":[],"viewRound":1}'::jsonb,
+  location    text,
+  event_at    timestamptz,
   updated_at  timestamptz not null default now()
 );
+
+-- Migration for existing tournament tables (safe to re-run):
+alter table tournament add column if not exists location text;
+alter table tournament add column if not exists event_at timestamptz;
 
 create table if not exists signups (
   id          uuid primary key default gen_random_uuid(),

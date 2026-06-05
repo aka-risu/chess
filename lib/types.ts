@@ -33,6 +33,8 @@ export interface Tournament {
   rounds: number;
   status: TournamentStatus;
   state: TournamentState;
+  location: string | null;
+  event_at: string | null; // ISO timestamp of the next event, or null if unscheduled
   updated_at: string;
 }
 

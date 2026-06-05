@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getTournament, listSignups, subscribeTournament } from "@/lib/supabase";
 import { allDone, deriveData, roundComplete, standings } from "@/lib/swiss";
 import type { Tournament } from "@/lib/types";
+import { csvFilename, downloadText, tournamentCsv } from "@/lib/export";
 import { StatusPill } from "@/components/StatusPill";
 import { StandingsTable } from "@/components/StandingsTable";
 import { PairingBoard } from "@/components/PairingBoard";
@@ -51,8 +52,12 @@ export default function ResultsPage() {
         <StatusPill status={t.status} round={t.state.schedule.length} rounds={t.rounds} />
       </div>
 
-      {done && rows.length > 0 && (
-        <div className="banner"><span className="kicker">Champion</span><div className="v">♛ {rows[0].name}</div></div>
+      {(t.status === "finished" || done) && rows.length > 0 && (
+        <div className="finished">
+          <span className="kicker label">Tournament finished</span>
+          <div className="win">🏆 {rows[0].name}</div>
+          <div className="muted" style={{ marginTop: 4 }}>champion</div>
+        </div>
       )}
 
       <h2 className="section">Pairings</h2>
@@ -67,7 +72,10 @@ export default function ResultsPage() {
 
       <h2 className="section" style={{ marginTop: 24 }}>Standings</h2>
       <p className="muted">Points · Buchholz · Sonneborn–Berger</p>
-      <StandingsTable rows={rows} playedRounds={t.state.schedule.length} champion={done} />
+      <StandingsTable rows={rows} playedRounds={t.state.schedule.length} champion={t.status === "finished" || done} />
+
+      <button className="btn block ghost" style={{ marginTop: 20 }}
+        onClick={() => downloadText(csvFilename(t), tournamentCsv(t))}>⬇ Download results (CSV)</button>
     </>
   );
 }

@@ -5,14 +5,14 @@
   --surface: #171b22;
   --surface-2: #1e232c;
   --line: #2a313c;
-  --ink: #eef2f6;
-  --ink-soft: #9aa6b2;
-  --ink-dim: #5d6875;
-  --accent: #c6f73f;
-  --accent-2: #ffb020;
-  --win: #c6f73f;
-  --loss: #5d6875;
-  --live: #ff4d4d;
+  --ink: #f3f6fa;
+  --ink-soft: #c2cdd9;
+  --ink-dim: #97a3b1;
+  --accent: #d4ff52;
+  --accent-2: #ffb733;
+  --win: #d4ff52;
+  --loss: #8b97a4;
+  --live: #ff5a5a;
   --mono: 'SFMono-Regular','SF Mono','JetBrains Mono',Menlo,Consolas,monospace;
   --sans: 'Inter','Avenir Next','Segoe UI',system-ui,-apple-system,sans-serif;
   --radius: 12px;
@@ -42,10 +42,11 @@ h1, h2 { letter-spacing: -0.01em; }
 .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
 input, button, select { font-family: inherit; font-size: 16px; }
-input[type=text], input[type=number] {
+input[type=text], input[type=number], input[type=datetime-local] {
   width: 100%; background: var(--surface); color: var(--ink);
   border: 1px solid var(--line); border-radius: 10px; padding: 14px; outline: none;
 }
+input[type=datetime-local]::-webkit-calendar-picker-indicator { filter: invert(.8); cursor: pointer; }
 input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(198,247,63,.15); }
 
 .btn {
@@ -68,14 +69,23 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(198,247,63
 
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
-  display: flex; background: rgba(11,13,16,.92); backdrop-filter: blur(10px);
-  border-top: 1px solid var(--line);
+  display: flex; background: rgba(13,16,21,.97); backdrop-filter: blur(12px);
+  border-top: 2px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }
 .tabbar a {
-  flex: 1; text-align: center; padding: 12px 6px 16px; text-decoration: none;
-  color: var(--ink-dim); font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+  flex: 1; text-align: center; padding: 13px 6px 15px; text-decoration: none;
+  position: relative;
+  color: var(--ink-soft); font-family: var(--mono); font-size: 12px; font-weight: 600;
+  letter-spacing: .1em; text-transform: uppercase;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
 }
+.tabbar a .ico { font-size: 19px; line-height: 1; }
 .tabbar a.active { color: var(--accent); }
+.tabbar a.active::before {
+  content: ''; position: absolute; top: -2px; left: 18%; right: 18%; height: 2px;
+  background: var(--accent); border-radius: 0 0 3px 3px;
+}
 
 .pill { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
   border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; color: var(--ink-soft); }
@@ -89,3 +99,44 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(198,247,63
 @keyframes flash { 0% { background: rgba(198,247,63,.35); } 100% { background: transparent; } }
 .flash { animation: flash .9s ease-out; }
 @media (prefers-reduced-motion: reduce) { .flash { animation: none; } }
+
+/* Event card + countdown */
+.event {
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 20px; margin: 16px 0; text-align: center;
+}
+.event .where { font-size: 17px; font-weight: 700; margin-top: 4px; }
+.event .where::before { content: '📍 '; }
+.countdown { display: flex; justify-content: center; gap: 10px; margin: 16px 0 4px; }
+.countdown .unit { min-width: 60px; }
+.countdown .n {
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: 34px; font-weight: 800; color: var(--accent); line-height: 1;
+}
+.countdown .l { font-family: var(--mono); font-size: 10px; letter-spacing: .15em; text-transform: uppercase; color: var(--ink-dim); margin-top: 6px; }
+.event .big { font-size: 26px; font-weight: 800; color: var(--accent); margin: 10px 0; }
+
+.finished {
+  border: 2px solid var(--accent); border-radius: var(--radius);
+  padding: 22px; text-align: center; background: rgba(212,255,82,.08); margin: 16px 0;
+}
+.finished .label { color: var(--accent); }
+.finished .win { font-size: 28px; font-weight: 800; margin-top: 6px; }
+
+/* Chess clock */
+.clock { display: flex; flex-direction: column; gap: 12px; min-height: 70dvh; }
+.clock .side {
+  flex: 1; border: 2px solid var(--line); border-radius: var(--radius);
+  display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px;
+  background: var(--surface); cursor: pointer; user-select: none; -webkit-user-select: none;
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+}
+.clock .side.top { transform: rotate(180deg); }
+.clock .side.active { border-color: var(--accent); background: rgba(212,255,82,.07); }
+.clock .side.flagged { border-color: var(--live); background: rgba(255,90,90,.08); }
+.clock .side .time { font-size: 54px; font-weight: 800; }
+.clock .side .meta { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-dim); }
+.clock .side.active .time { color: var(--accent); }
+.clock .side.flagged .time { color: var(--live); }
+.clock .controls { display: flex; gap: 10px; }
