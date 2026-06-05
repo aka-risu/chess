@@ -6,6 +6,8 @@ import { addSignup, getTournament, listSignups, removeSignup, subscribeSignups, 
 import { standings } from "@/lib/swiss";
 import type { Signup, Tournament } from "@/lib/types";
 import { Countdown, formatEventDate } from "@/components/Countdown";
+import { MyMatch } from "@/components/MyMatch";
+import { SPONSOR } from "@/lib/sponsor";
 
 const MINE_KEY = "swiss_my_signups";
 const getMine = (): string[] => { try { return JSON.parse(localStorage.getItem(MINE_KEY) || "[]"); } catch { return []; } };
@@ -19,10 +21,12 @@ export default function SignupPage() {
   const [t, setT] = useState<Tournament | null>(null);
   const [mine, setMineState] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const refresh = async () => {
     setSignups(await listSignups());
     setT(await getTournament());
+    setLoading(false);
   };
   useEffect(() => {
     const raf = requestAnimationFrame(() => setMineState(getMine()));
@@ -47,6 +51,16 @@ export default function SignupPage() {
     await removeSignup(id);
     const next = getMine().filter((x) => x !== id); setMine(next); setMineState(next);
   };
+
+  const headerShell = (
+    <div className="mast">
+      <div>
+        <span className="title">Chess Tournament</span>
+        <div className="kicker" style={{ marginTop: 4 }}>Swiss system</div>
+      </div>
+    </div>
+  );
+  if (loading) return <>{headerShell}<div className="empty">Loading…</div></>;
 
   const status = t?.status ?? "setup";
   const location = t?.location || DEFAULT_LOCATION;
@@ -74,6 +88,7 @@ export default function SignupPage() {
           <span className="kicker label">Tournament finished</span>
           <div className="win">🏆 {rows[0]?.name ?? "—"}</div>
           <div className="muted" style={{ marginTop: 6 }}>is the champion</div>
+          {t.show_sponsor && <div className="muted" style={{ marginTop: 8, fontSize: 13 }}>Organized by {SPONSOR.name}</div>}
         </div>
         <Link className="btn block" href="/results">View full results →</Link>
       </>
@@ -98,6 +113,7 @@ export default function SignupPage() {
     return (
       <>
         {header}
+        <MyMatch t={t!} />
         {eventCard}
         <div className="empty">
           The tournament has started — sign-up is closed.<br />

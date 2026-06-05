@@ -9,6 +9,9 @@ create table if not exists tournament (
   state       jsonb not null default '{"players":[],"schedule":[],"viewRound":1}'::jsonb,
   location    text,
   event_at    timestamptz,
+  signups_public boolean not null default false,
+  show_sponsor   boolean not null default false,
+  show_venue     boolean not null default false,
   updated_at  timestamptz not null default now()
 );
 
@@ -17,6 +20,9 @@ alter table tournament add column if not exists location text;
 alter table tournament add column if not exists event_at timestamptz;
 -- Whether the full sign-up name list is public (else only a count is shown):
 alter table tournament add column if not exists signups_public boolean not null default false;
+-- Footer credit toggles (off by default — organizer opts in):
+alter table tournament add column if not exists show_sponsor boolean not null default false;
+alter table tournament add column if not exists show_venue boolean not null default false;
 
 -- Archived finished tournaments (history). One row per finished tournament,
 -- keyed by the per-tournament uid so post-finish edits update the same row.

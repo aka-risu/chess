@@ -25,6 +25,13 @@ let channelSeq = 0;
 
 const TID = "current";
 
+// Turn a Supabase/PostgREST error object into a readable Error (so callers and
+// the Next overlay show a real message instead of "[object Object]").
+function fail(where: string, error: { message?: string; details?: string; hint?: string; code?: string }): never {
+  const parts = [error?.message, error?.details, error?.hint, error?.code].filter(Boolean);
+  throw new Error(`${where}: ${parts.join(" · ") || "Supabase error"}`);
+}
+
 export async function getTournament(): Promise<Tournament | null> {
   const { data, error } = await supabase().from("tournament").select("*").eq("id", TID).single();
   if (error) { console.error("getTournament", error); return null; }
@@ -32,13 +39,13 @@ export async function getTournament(): Promise<Tournament | null> {
 }
 
 export async function saveTournament(
-  patch: Partial<Pick<Tournament, "title" | "rounds" | "status" | "state" | "location" | "event_at" | "signups_public">>,
+  patch: Partial<Pick<Tournament, "title" | "rounds" | "status" | "state" | "location" | "event_at" | "signups_public" | "show_sponsor" | "show_venue">>,
 ): Promise<void> {
   const { error } = await supabase()
     .from("tournament")
     .update({ ...patch, updated_at: new Date().toISOString() })
     .eq("id", TID);
-  if (error) throw error;
+  if (error) fail("Supabase write", error);
 }
 
 export async function saveState(state: TournamentState): Promise<void> {
@@ -59,7 +66,7 @@ export async function addSignup(name: string): Promise<Signup | null> {
 
 export async function removeSignup(id: string): Promise<void> {
   const { error } = await supabase().from("signups").delete().eq("id", id);
-  if (error) throw error;
+  if (error) fail("Supabase write", error);
 }
 
 export function subscribeTournament(onChange: () => void): RealtimeChannel {
@@ -103,7 +110,12 @@ export async function listHistory(): Promise<HistoryEntry[]> {
 
 export async function setHistoryVisible(id: string, visible: boolean): Promise<void> {
   const { error } = await supabase().from("tournament_history").update({ visible }).eq("id", id);
-  if (error) throw error;
+  if (error) fail("Supabase write", error);
+}
+
+export async function deleteHistory(id: string): Promise<void> {
+  const { error } = await supabase().from("tournament_history").delete().eq("id", id);
+  if (error) fail("Supabase write", error);
 }
 
 export function subscribeHistory(onChange: () => void): RealtimeChannel {
