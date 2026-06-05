@@ -122,18 +122,32 @@ export default function SignupPage() {
 
       <p className="kicker" style={{ marginTop: 18 }}>{signups.length} signed up</p>
 
-      {myEntries.length > 0 && (
+      {t?.signups_public ? (
         <div className="stack" style={{ marginTop: 10 }}>
-          <span className="muted">You&apos;re signed up:</span>
-          {myEntries.map((sgn) => (
+          {signups.map((sgn, i) => (
             <div key={sgn.id} className="card row" style={{ justifyContent: "space-between" }}>
-              <span>✓ {sgn.name}</span>
-              <button className="btn danger" onClick={() => withdraw(sgn.id)}>Remove</button>
+              <span><span className="num" style={{ color: "var(--accent)", marginRight: 10 }}>{i + 1}</span>{sgn.name}</span>
+              {mine.includes(sgn.id) && <button className="btn danger" onClick={() => withdraw(sgn.id)}>Remove</button>}
             </div>
           ))}
+          {signups.length === 0 && <div className="empty">No one yet — be the first.</div>}
         </div>
+      ) : (
+        <>
+          {myEntries.length > 0 && (
+            <div className="stack" style={{ marginTop: 10 }}>
+              <span className="muted">You&apos;re signed up:</span>
+              {myEntries.map((sgn) => (
+                <div key={sgn.id} className="card row" style={{ justifyContent: "space-between" }}>
+                  <span>✓ {sgn.name}</span>
+                  <button className="btn danger" onClick={() => withdraw(sgn.id)}>Remove</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {signups.length === 0 && <div className="empty" style={{ marginTop: 10 }}>No one yet — be the first.</div>}
+        </>
       )}
-      {signups.length === 0 && <div className="empty" style={{ marginTop: 10 }}>No one yet — be the first.</div>}
     </>
   );
 }

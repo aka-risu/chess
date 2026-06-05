@@ -2,7 +2,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import {
-  addSignup, getTournament, listSignups, removeSignup, saveTournament, subscribeSignups, subscribeTournament,
+  addSignup, getTournament, listSignups, removeSignup, saveTournament, subscribeSignups, subscribeTournament, upsertHistory,
 } from "@/lib/supabase";
 import {
   allDone, clampRounds, deriveData, generateRound, recommendedRounds, roundComplete, standings,
@@ -83,7 +83,7 @@ export default function AdminPage() {
     const start = async () => {
       if (n < 7 || n > 16) return;
       const players = signups.filter((sg) => chosen.has(sg.id)).map((sg) => ({ id: sg.id, name: sg.name }));
-      const state: TournamentState = { players, schedule: [], viewRound: 1 };
+      const state: TournamentState = { players, schedule: [], viewRound: 1, uid: crypto.randomUUID() };
       state.schedule.push(generateRound(state));
       state.viewRound = 1;
       await saveTournament({ status: "active", rounds: clampRounds(t.rounds, players.length), state });
@@ -131,6 +131,12 @@ export default function AdminPage() {
           <label className="kicker">Rounds (suggested {recommendedRounds(n)})</label>
           <input type="number" min={1} max={Math.max(1, n - 1) || 15} value={t.rounds}
             onChange={(e) => saveTournament({ rounds: clampRounds(Number(e.target.value), n || 16) })} />
+          <label className="row" style={{ gap: 10, marginTop: 4 }}>
+            <input type="checkbox" checked={t.signups_public}
+              onChange={(e) => saveTournament({ signups_public: e.target.checked })}
+              style={{ width: 22, height: 22 }} />
+            <span>Show sign-up names publicly <span className="muted">(off = public sees only a count)</span></span>
+          </label>
         </div>
         <button className="btn block amber" style={{ marginTop: 16 }} disabled={n < 7 || n > 16} onClick={start}>
           Start tournament →
@@ -146,13 +152,25 @@ export default function AdminPage() {
   const complete = roundComplete(t.state, cur);
   const done = allDone(t.state, t.rounds);
 
+  // Snapshot the finished tournament into history (podium = top 3 standings).
+  const archive = async (state: TournamentState) => {
+    if (!state.uid) return;
+    const podium = standings(state).map((r) => ({ name: r.name, score: r.score, buch: r.buch, sb: r.sb }));
+    await upsertHistory({
+      id: state.uid, title: t.title, location: t.location, event_at: t.event_at,
+      rounds: state.schedule.length, standings: podium,
+    });
+  };
+
   const setResult = async (gi: number, res: "w" | "d" | "b") => {
     const state: TournamentState = structuredClone(t.state);
     const g = state.schedule[cur][gi];
     if (!g || g.b === null) return;
     g.res = g.res === res ? null : res;
     const finished = allDone(state, t.rounds);
+    if (finished && !state.uid) state.uid = crypto.randomUUID();
     await saveTournament({ state, status: finished ? "finished" : "active" });
+    if (finished) await archive(state);
   };
   const nextRound = async () => {
     if (!complete || t.state.schedule.length >= t.rounds) return;
@@ -174,7 +192,10 @@ export default function AdminPage() {
   };
   const finishNow = async () => {
     if (!confirm("End the tournament now? Current standings become final and the leader is declared champion.")) return;
-    await saveTournament({ status: "finished" });
+    const state: TournamentState = structuredClone(t.state);
+    if (!state.uid) state.uid = crypto.randomUUID();
+    await saveTournament({ status: "finished", state });
+    await archive(state);
   };
   const downloadCsv = () => downloadText(csvFilename(t), tournamentCsv(t));
 

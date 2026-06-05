@@ -22,6 +22,7 @@ export interface TournamentState {
   players: Player[];
   schedule: Round[];
   viewRound: number;
+  uid?: string; // stable id for this tournament instance (used as history key)
 }
 
 export type TournamentStatus = "setup" | "active" | "finished";
@@ -35,6 +36,7 @@ export interface Tournament {
   state: TournamentState;
   location: string | null;
   event_at: string | null; // ISO timestamp of the next event, or null if unscheduled
+  signups_public: boolean; // whether the full sign-up name list is public
   updated_at: string;
 }
 
@@ -42,6 +44,26 @@ export interface Signup {
   id: string;
   name: string;
   created_at: string;
+}
+
+/** A single row in an archived tournament's final standings. */
+export interface PodiumRow {
+  name: string;
+  score: number;
+  buch: number;
+  sb: number;
+}
+
+/** An archived finished tournament. The podium is the first 3 standings rows. */
+export interface HistoryEntry {
+  id: string;
+  title: string;
+  location: string | null;
+  event_at: string | null;
+  finished_at: string;
+  rounds: number;
+  standings: PodiumRow[];
+  visible: boolean;
 }
 
 /** Per-player derived standings data (computed, never stored) */

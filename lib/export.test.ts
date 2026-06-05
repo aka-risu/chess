@@ -11,6 +11,7 @@ function makeTournament(): Tournament {
     status: "finished",
     location: "The office, Koh Tao",
     event_at: "2026-06-10T18:00:00.000Z",
+    signups_public: false,
     updated_at: "2026-06-10T20:00:00.000Z",
     state: {
       viewRound: 2,

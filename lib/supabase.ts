@@ -1,7 +1,7 @@
 // lib/supabase.ts
 "use client";
 import { createClient, type RealtimeChannel, type SupabaseClient } from "@supabase/supabase-js";
-import type { Signup, Tournament, TournamentState } from "./types";
+import type { HistoryEntry, Signup, Tournament, TournamentState } from "./types";
 
 let _client: SupabaseClient | null = null;
 
@@ -32,7 +32,7 @@ export async function getTournament(): Promise<Tournament | null> {
 }
 
 export async function saveTournament(
-  patch: Partial<Pick<Tournament, "title" | "rounds" | "status" | "state" | "location" | "event_at">>,
+  patch: Partial<Pick<Tournament, "title" | "rounds" | "status" | "state" | "location" | "event_at" | "signups_public">>,
 ): Promise<void> {
   const { error } = await supabase()
     .from("tournament")
@@ -73,5 +73,42 @@ export function subscribeSignups(onChange: () => void): RealtimeChannel {
   return supabase()
     .channel("signups-changes-" + (++channelSeq))
     .on("postgres_changes", { event: "*", schema: "public", table: "signups" }, onChange)
+    .subscribe();
+}
+
+// --- Tournament history ---
+
+/** Insert or update an archived tournament (keyed by id). Leaves `visible` untouched on update. */
+export async function upsertHistory(
+  e: Pick<HistoryEntry, "id" | "title" | "location" | "event_at" | "rounds" | "standings">,
+): Promise<void> {
+  const { error } = await supabase()
+    .from("tournament_history")
+    .upsert(
+      { ...e, finished_at: new Date().toISOString() },
+      { onConflict: "id" },
+    );
+  if (error) console.error("upsertHistory", error);
+}
+
+/** All archived tournaments, newest first. Caller filters by `visible` for public views. */
+export async function listHistory(): Promise<HistoryEntry[]> {
+  const { data, error } = await supabase()
+    .from("tournament_history")
+    .select("*")
+    .order("finished_at", { ascending: false });
+  if (error) { console.error("listHistory", error); return []; }
+  return (data ?? []) as HistoryEntry[];
+}
+
+export async function setHistoryVisible(id: string, visible: boolean): Promise<void> {
+  const { error } = await supabase().from("tournament_history").update({ visible }).eq("id", id);
+  if (error) throw error;
+}
+
+export function subscribeHistory(onChange: () => void): RealtimeChannel {
+  return supabase()
+    .channel("history-changes-" + (++channelSeq))
+    .on("postgres_changes", { event: "*", schema: "public", table: "tournament_history" }, onChange)
     .subscribe();
 }
