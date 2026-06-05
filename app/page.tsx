@@ -2,7 +2,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { addSignup, getTournament, listSignups, removeSignup, subscribeSignups, subscribeTournament } from "@/lib/supabase";
+import { addSignup, cachedSignups, cachedTournament, getTournament, listSignups, removeSignup, subscribeSignups, subscribeTournament } from "@/lib/supabase";
 import { standings } from "@/lib/swiss";
 import type { Signup, Tournament } from "@/lib/types";
 import { Countdown, formatEventDate } from "@/components/Countdown";
@@ -17,11 +17,11 @@ const DEFAULT_LOCATION = "The office, Koh Tao";
 
 export default function SignupPage() {
   const [name, setName] = useState("");
-  const [signups, setSignups] = useState<Signup[]>([]);
-  const [t, setT] = useState<Tournament | null>(null);
+  const [signups, setSignups] = useState<Signup[]>(cachedSignups() ?? []);
+  const [t, setT] = useState<Tournament | null>(cachedTournament());
   const [mine, setMineState] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(cachedTournament() === null);
 
   const refresh = async () => {
     setSignups(await listSignups());

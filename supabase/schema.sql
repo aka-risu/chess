@@ -34,8 +34,11 @@ create table if not exists tournament_history (
   finished_at timestamptz not null default now(),
   rounds      int not null default 0,
   standings   jsonb not null default '[]'::jsonb, -- [{name,score,buch,sb}], sorted; podium = first 3
+  state       jsonb, -- full engine state (players + schedule) for the detailed standings table
   visible     boolean not null default true
 );
+-- Migration for existing history tables:
+alter table tournament_history add column if not exists state jsonb;
 
 create table if not exists signups (
   id          uuid primary key default gen_random_uuid(),

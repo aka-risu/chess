@@ -12,6 +12,7 @@ export const metadata: Metadata = {
   title: TITLE,
   description: DESC,
   applicationName: "Chess Tournament",
+  icons: { icon: [{ url: "/icon-192.png", sizes: "192x192", type: "image/png" }], apple: "/apple-icon.png" },
   appleWebApp: { capable: true, title: "Chess", statusBarStyle: "black-translucent" },
   openGraph: { title: TITLE, description: DESC, type: "website", images: ["/podium-template.png"] },
   twitter: { card: "summary_large_image", title: TITLE, description: DESC, images: ["/podium-template.png"] },

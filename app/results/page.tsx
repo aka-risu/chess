@@ -1,7 +1,7 @@
 // app/results/page.tsx
 "use client";
 import { useEffect, useState } from "react";
-import { getTournament, listSignups, subscribeTournament } from "@/lib/supabase";
+import { cachedTournament, getTournament, listSignups, subscribeTournament } from "@/lib/supabase";
 import { allDone, deriveData, roundComplete, standings } from "@/lib/swiss";
 import type { Tournament } from "@/lib/types";
 import { csvFilename, downloadText, tournamentCsv } from "@/lib/export";
@@ -13,7 +13,7 @@ import { PairingBoard } from "@/components/PairingBoard";
 import { RoundNav } from "@/components/RoundNav";
 
 export default function ResultsPage() {
-  const [t, setT] = useState<Tournament | null>(null);
+  const [t, setT] = useState<Tournament | null>(cachedTournament());
   const [signupCount, setSignupCount] = useState(0);
   const [view, setView] = useState(0);
 

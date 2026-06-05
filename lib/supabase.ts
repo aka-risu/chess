@@ -32,10 +32,22 @@ function fail(where: string, error: { message?: string; details?: string; hint?:
   throw new Error(`${where}: ${parts.join(" · ") || "Supabase error"}`);
 }
 
+// In-memory caches of the last successful fetch. Switching tabs unmounts/remounts
+// a page; seeding state from these lets it render instantly instead of flashing a
+// "Loading…" state, then refresh silently. Loading shows only on the very first
+// fetch (cache still null).
+let _cacheT: Tournament | null = null;
+let _cacheS: Signup[] | null = null;
+let _cacheH: HistoryEntry[] | null = null;
+export const cachedTournament = (): Tournament | null => _cacheT;
+export const cachedSignups = (): Signup[] | null => _cacheS;
+export const cachedHistory = (): HistoryEntry[] | null => _cacheH;
+
 export async function getTournament(): Promise<Tournament | null> {
   const { data, error } = await supabase().from("tournament").select("*").eq("id", TID).single();
   if (error) { console.error("getTournament", error); return null; }
-  return data as Tournament;
+  _cacheT = data as Tournament;
+  return _cacheT;
 }
 
 export async function saveTournament(
@@ -54,8 +66,9 @@ export async function saveState(state: TournamentState): Promise<void> {
 
 export async function listSignups(): Promise<Signup[]> {
   const { data, error } = await supabase().from("signups").select("*").order("created_at");
-  if (error) { console.error("listSignups", error); return []; }
-  return (data ?? []) as Signup[];
+  if (error) { console.error("listSignups", error); return _cacheS ?? []; }
+  _cacheS = (data ?? []) as Signup[];
+  return _cacheS;
 }
 
 export async function addSignup(name: string): Promise<Signup | null> {
@@ -87,7 +100,7 @@ export function subscribeSignups(onChange: () => void): RealtimeChannel {
 
 /** Insert or update an archived tournament (keyed by id). Leaves `visible` untouched on update. */
 export async function upsertHistory(
-  e: Pick<HistoryEntry, "id" | "title" | "location" | "event_at" | "rounds" | "standings">,
+  e: Pick<HistoryEntry, "id" | "title" | "location" | "event_at" | "rounds" | "standings" | "state">,
 ): Promise<void> {
   const { error } = await supabase()
     .from("tournament_history")
@@ -104,8 +117,9 @@ export async function listHistory(): Promise<HistoryEntry[]> {
     .from("tournament_history")
     .select("*")
     .order("finished_at", { ascending: false });
-  if (error) { console.error("listHistory", error); return []; }
-  return (data ?? []) as HistoryEntry[];
+  if (error) { console.error("listHistory", error); return _cacheH ?? []; }
+  _cacheH = (data ?? []) as HistoryEntry[];
+  return _cacheH;
 }
 
 export async function setHistoryVisible(id: string, visible: boolean): Promise<void> {

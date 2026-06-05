@@ -1,9 +1,11 @@
 // app/history/page.tsx
 "use client";
 import { useEffect, useState } from "react";
-import { deleteHistory, listHistory, setHistoryVisible, subscribeHistory } from "@/lib/supabase";
+import { cachedHistory, deleteHistory, listHistory, setHistoryVisible, subscribeHistory } from "@/lib/supabase";
 import { sharePodium } from "@/lib/share";
 import { aggregate } from "@/lib/leaderboard";
+import { standings } from "@/lib/swiss";
+import { StandingsTable } from "@/components/StandingsTable";
 import type { HistoryEntry } from "@/lib/types";
 
 const UNLOCK_KEY = "swiss_admin_unlocked";
@@ -20,7 +22,7 @@ function fmtDate(iso: string | null): string {
 }
 
 export default function HistoryPage() {
-  const [entries, setEntries] = useState<HistoryEntry[] | null>(null);
+  const [entries, setEntries] = useState<HistoryEntry[] | null>(cachedHistory());
   const [isOrganizer, setIsOrganizer] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [mode, setMode] = useState<"events" | "alltime">("events");
@@ -153,22 +155,33 @@ export default function HistoryPage() {
                 ))}
               </div>
 
-              {/* Full standings (expandable) */}
-              {isOpen && e.standings.length > 3 && (
-                <div className="stack" style={{ gap: 4, marginTop: 6, borderTop: "1px solid var(--line)", paddingTop: 8 }}>
-                  {e.standings.slice(3).map((p, i) => (
-                    <div key={i} className="row" style={{ justifyContent: "space-between", color: "var(--ink-soft)" }}>
-                      <span className="num" style={{ gap: 10 }}><span style={{ color: "var(--ink-dim)" }}>{i + 4}.</span> {p.name}</span>
-                      <span className="num">{fmt(p.score)}</span>
+              {/* Full standings (expandable) — detailed table when we have the
+                  saved engine state, else a simple list for older entries. */}
+              {isOpen && (
+                <div style={{ marginTop: 6, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
+                  {e.state ? (
+                    <StandingsTable
+                      rows={standings(e.state)}
+                      playedRounds={e.state.schedule.length}
+                      champion
+                    />
+                  ) : (
+                    <div className="stack" style={{ gap: 4 }}>
+                      {e.standings.map((p, i) => (
+                        <div key={i} className="row" style={{ justifyContent: "space-between", color: "var(--ink-soft)" }}>
+                          <span className="num"><span style={{ color: "var(--ink-dim)" }}>{i + 1}.</span> {p.name}</span>
+                          <span className="num">{fmt(p.score)}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
 
               <div className="row" style={{ gap: 8, marginTop: 6 }}>
-                {e.standings.length > 3 && (
+                {(e.state || e.standings.length > 3) && (
                   <button className="btn ghost grow" onClick={() => toggleExpand(e.id)}>
-                    {isOpen ? "Hide standings" : `Full standings (${e.standings.length})`}
+                    {isOpen ? "Hide info" : "All info"}
                   </button>
                 )}
                 <button className="btn grow" onClick={() => sharePodium(e)}>↗ Share</button>

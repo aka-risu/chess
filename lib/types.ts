@@ -65,6 +65,7 @@ export interface HistoryEntry {
   finished_at: string;
   rounds: number;
   standings: PodiumRow[];
+  state?: TournamentState | null; // full engine state for the detailed standings table (older entries may lack it)
   visible: boolean;
 }
 

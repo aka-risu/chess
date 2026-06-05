@@ -2,7 +2,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import {
-  addSignup, getTournament, listSignups, removeSignup, saveTournament, subscribeSignups, subscribeTournament, upsertHistory,
+  addSignup, cachedSignups, cachedTournament, getTournament, listSignups, removeSignup, saveTournament, subscribeSignups, subscribeTournament, upsertHistory,
 } from "@/lib/supabase";
 import {
   allDone, clampRounds, deriveData, generateRound, recommendedRounds, roundComplete, standings,
@@ -33,8 +33,8 @@ const fromLocalInput = (v: string): string | null => {
 export default function AdminPage() {
   const [unlocked, setUnlocked] = useState(false);
   const [pass, setPass] = useState("");
-  const [t, setT] = useState<Tournament | null>(null);
-  const [signups, setSignups] = useState<Signup[]>([]);
+  const [t, setT] = useState<Tournament | null>(cachedTournament());
+  const [signups, setSignups] = useState<Signup[]>(cachedSignups() ?? []);
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [view, setView] = useState(0);
   const [manualName, setManualName] = useState("");
@@ -184,7 +184,7 @@ export default function AdminPage() {
     const podium = standings(state).map((r) => ({ name: r.name, score: r.score, buch: r.buch, sb: r.sb }));
     await upsertHistory({
       id: state.uid, title: t.title, location: t.location, event_at: t.event_at,
-      rounds: state.schedule.length, standings: podium,
+      rounds: state.schedule.length, standings: podium, state,
     });
   };
 
@@ -224,6 +224,14 @@ export default function AdminPage() {
     await archive(state);
   };
   const downloadCsv = () => downloadText(csvFilename(t), tournamentCsv(t));
+  // Manually archive the current tournament to history (e.g. one that finished
+  // before auto-archiving existed, or to refresh the saved snapshot).
+  const saveToHistory = async () => {
+    const state: TournamentState = structuredClone(t.state);
+    if (!state.uid) { state.uid = crypto.randomUUID(); await saveTournament({ state }); }
+    try { await archive(state); alert("Saved to history ✓"); }
+    catch (err) { alert(err instanceof Error ? err.message : String(err)); }
+  };
 
   let board = 0;
   const rows = standings(t.state);
@@ -263,6 +271,7 @@ export default function AdminPage() {
         )}
         {isLatest && !complete && <button className="btn block" disabled>Enter all results to continue</button>}
         <button className="btn block ghost" onClick={downloadCsv}>⬇ Download results (CSV)</button>
+        <button className="btn block ghost" onClick={saveToHistory}>★ Save to history</button>
         {t.status !== "finished" && (
           <button className="btn block ghost" onClick={finishNow}>End tournament now</button>
         )}

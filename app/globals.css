@@ -35,7 +35,7 @@ body {
 
 h1, h2 { letter-spacing: -0.01em; }
 .mast { display: flex; align-items: center; justify-content: space-between; padding: 8px 0 16px; gap: 10px; }
-.mast .title { font-size: 20px; font-weight: 700; }
+.mast .title { font-size: 20px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--ink-dim); }
 .section { font-size: 22px; font-weight: 700; margin: 4px 0 2px; }
 .muted { color: var(--ink-soft); font-size: 14px; }
@@ -88,7 +88,8 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(198,247,63
 }
 
 .pill { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
-  border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; color: var(--ink-soft); }
+  border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; color: var(--ink-soft);
+  white-space: nowrap; flex: none; }
 .pill.live { color: var(--live); border-color: var(--live); }
 .pill.live::before { content: '● '; }
 
