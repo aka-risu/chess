@@ -13,9 +13,12 @@ export function SignupQR() {
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
-      const origin = window.location.origin + "/";
-      setUrl(origin);
-      QRCode.toDataURL(origin, { width: 480, margin: 1, color: { dark: "#0b0d10", light: "#ffffff" } })
+      // Prefer a configured public URL so the QR is scannable even when the
+      // organizer opens this page on localhost; fall back to the current origin.
+      const base = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+      const target = base.replace(/\/+$/, "") + "/";
+      setUrl(target);
+      QRCode.toDataURL(target, { width: 480, margin: 1, color: { dark: "#0b0d10", light: "#ffffff" } })
         .then(setDataUrl)
         .catch(() => setDataUrl(null));
     });

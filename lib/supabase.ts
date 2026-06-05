@@ -1,7 +1,8 @@
 // lib/supabase.ts
 "use client";
 import { createClient, type RealtimeChannel, type SupabaseClient } from "@supabase/supabase-js";
-import type { HistoryEntry, Signup, Tournament, TournamentState } from "./types";
+import { emptyState, type HistoryEntry, type Signup, type Tournament, type TournamentState } from "./types";
+import { isTestMode } from "./mode";
 
 let _client: SupabaseClient | null = null;
 
@@ -39,11 +40,57 @@ function fail(where: string, error: { message?: string; details?: string; hint?:
 let _cacheT: Tournament | null = null;
 let _cacheS: Signup[] | null = null;
 let _cacheH: HistoryEntry[] | null = null;
-export const cachedTournament = (): Tournament | null => _cacheT;
-export const cachedSignups = (): Signup[] | null => _cacheS;
-export const cachedHistory = (): HistoryEntry[] | null => _cacheH;
+export const cachedTournament = (): Tournament | null => (isTestMode() ? _test?.tournament ?? null : _cacheT);
+export const cachedSignups = (): Signup[] | null => (isTestMode() ? _test?.signups ?? null : _cacheS);
+export const cachedHistory = (): HistoryEntry[] | null => (isTestMode() ? _test?.history ?? null : _cacheH);
+
+// --- Test mode (local sandbox; see lib/mode.ts) ---
+// While `?test` is active, all reads/writes hit this in-memory snapshot and the
+// database is never touched. A tiny local pub/sub keeps the UI reactive.
+interface TestData { tournament: Tournament | null; signups: Signup[]; history: HistoryEntry[]; }
+let _test: TestData | null = null;
+const _testListeners = {
+  tournament: new Set<() => void>(),
+  signups: new Set<() => void>(),
+  history: new Set<() => void>(),
+};
+function notify(kind: keyof typeof _testListeners) { _testListeners[kind].forEach((fn) => fn()); }
+function fakeChannel(kind: keyof typeof _testListeners, onChange: () => void): RealtimeChannel {
+  _testListeners[kind].add(onChange);
+  return { unsubscribe: () => { _testListeners[kind].delete(onChange); } } as unknown as RealtimeChannel;
+}
+function blankTournament(): Tournament {
+  return {
+    id: TID, title: "Test Tournament", rounds: 4, status: "setup", state: emptyState(),
+    location: null, event_at: null, signups_public: false, show_sponsor: false, show_venue: false,
+    updated_at: new Date().toISOString(),
+  };
+}
+// Seed the sandbox once from a read-only copy of live data (blank if unreachable).
+async function ensureTestSeed(): Promise<TestData> {
+  if (_test) return _test;
+  let tournament: Tournament | null = null, signups: Signup[] = [], history: HistoryEntry[] = [];
+  try {
+    const c = supabase();
+    const [tr, sr, hr] = await Promise.all([
+      c.from("tournament").select("*").eq("id", TID).single(),
+      c.from("signups").select("*").order("created_at"),
+      c.from("tournament_history").select("*").order("finished_at", { ascending: false }),
+    ]);
+    tournament = (tr.data as Tournament) ?? null;
+    signups = (sr.data ?? []) as Signup[];
+    history = (hr.data ?? []) as HistoryEntry[];
+  } catch { /* offline / no DB → blank sandbox */ }
+  _test = {
+    tournament: tournament ? structuredClone(tournament) : null,
+    signups: structuredClone(signups),
+    history: structuredClone(history),
+  };
+  return _test;
+}
 
 export async function getTournament(): Promise<Tournament | null> {
+  if (isTestMode()) return (await ensureTestSeed()).tournament;
   const { data, error } = await supabase().from("tournament").select("*").eq("id", TID).single();
   if (error) { console.error("getTournament", error); return null; }
   _cacheT = data as Tournament;
@@ -53,6 +100,12 @@ export async function getTournament(): Promise<Tournament | null> {
 export async function saveTournament(
   patch: Partial<Pick<Tournament, "title" | "rounds" | "status" | "state" | "location" | "event_at" | "signups_public" | "show_sponsor" | "show_venue">>,
 ): Promise<void> {
+  if (isTestMode()) {
+    const d = await ensureTestSeed();
+    d.tournament = { ...(d.tournament ?? blankTournament()), ...patch, updated_at: new Date().toISOString() };
+    notify("tournament");
+    return;
+  }
   const { error } = await supabase()
     .from("tournament")
     .update({ ...patch, updated_at: new Date().toISOString() })
@@ -65,6 +118,7 @@ export async function saveState(state: TournamentState): Promise<void> {
 }
 
 export async function listSignups(): Promise<Signup[]> {
+  if (isTestMode()) return (await ensureTestSeed()).signups;
   const { data, error } = await supabase().from("signups").select("*").order("created_at");
   if (error) { console.error("listSignups", error); return _cacheS ?? []; }
   _cacheS = (data ?? []) as Signup[];
@@ -72,17 +126,27 @@ export async function listSignups(): Promise<Signup[]> {
 }
 
 export async function addSignup(name: string): Promise<Signup | null> {
+  if (isTestMode()) {
+    const d = await ensureTestSeed();
+    const row: Signup = { id: crypto.randomUUID(), name, created_at: new Date().toISOString() };
+    d.signups.push(row); notify("signups"); return row;
+  }
   const { data, error } = await supabase().from("signups").insert({ name }).select().single();
   if (error) { console.error("addSignup", error); return null; }
   return data as Signup;
 }
 
 export async function removeSignup(id: string): Promise<void> {
+  if (isTestMode()) {
+    const d = await ensureTestSeed();
+    d.signups = d.signups.filter((s) => s.id !== id); notify("signups"); return;
+  }
   const { error } = await supabase().from("signups").delete().eq("id", id);
   if (error) fail("Supabase write", error);
 }
 
 export function subscribeTournament(onChange: () => void): RealtimeChannel {
+  if (isTestMode()) return fakeChannel("tournament", onChange);
   return supabase()
     .channel("tournament-changes-" + (++channelSeq))
     .on("postgres_changes", { event: "*", schema: "public", table: "tournament" }, onChange)
@@ -90,6 +154,7 @@ export function subscribeTournament(onChange: () => void): RealtimeChannel {
 }
 
 export function subscribeSignups(onChange: () => void): RealtimeChannel {
+  if (isTestMode()) return fakeChannel("signups", onChange);
   return supabase()
     .channel("signups-changes-" + (++channelSeq))
     .on("postgres_changes", { event: "*", schema: "public", table: "signups" }, onChange)
@@ -102,6 +167,15 @@ export function subscribeSignups(onChange: () => void): RealtimeChannel {
 export async function upsertHistory(
   e: Pick<HistoryEntry, "id" | "title" | "location" | "event_at" | "rounds" | "standings" | "state">,
 ): Promise<void> {
+  if (isTestMode()) {
+    const d = await ensureTestSeed();
+    const idx = d.history.findIndex((h) => h.id === e.id);
+    const visible = idx >= 0 ? d.history[idx].visible : true;
+    const row: HistoryEntry = { ...e, finished_at: new Date().toISOString(), visible };
+    if (idx >= 0) d.history[idx] = row; else d.history.unshift(row);
+    notify("history");
+    return;
+  }
   const { error } = await supabase()
     .from("tournament_history")
     .upsert(
@@ -113,6 +187,7 @@ export async function upsertHistory(
 
 /** All archived tournaments, newest first. Caller filters by `visible` for public views. */
 export async function listHistory(): Promise<HistoryEntry[]> {
+  if (isTestMode()) return (await ensureTestSeed()).history;
   const { data, error } = await supabase()
     .from("tournament_history")
     .select("*")
@@ -123,16 +198,25 @@ export async function listHistory(): Promise<HistoryEntry[]> {
 }
 
 export async function setHistoryVisible(id: string, visible: boolean): Promise<void> {
+  if (isTestMode()) {
+    const d = await ensureTestSeed();
+    d.history = d.history.map((h) => (h.id === id ? { ...h, visible } : h)); notify("history"); return;
+  }
   const { error } = await supabase().from("tournament_history").update({ visible }).eq("id", id);
   if (error) fail("Supabase write", error);
 }
 
 export async function deleteHistory(id: string): Promise<void> {
+  if (isTestMode()) {
+    const d = await ensureTestSeed();
+    d.history = d.history.filter((h) => h.id !== id); notify("history"); return;
+  }
   const { error } = await supabase().from("tournament_history").delete().eq("id", id);
   if (error) fail("Supabase write", error);
 }
 
 export function subscribeHistory(onChange: () => void): RealtimeChannel {
+  if (isTestMode()) return fakeChannel("history", onChange);
   return supabase()
     .channel("history-changes-" + (++channelSeq))
     .on("postgres_changes", { event: "*", schema: "public", table: "tournament_history" }, onChange)

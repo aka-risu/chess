@@ -4,6 +4,8 @@ import type { Metadata, Viewport } from "next";
 import { TabBar } from "@/components/TabBar";
 import { SponsorFooter } from "@/components/SponsorFooter";
 import { SWRegister } from "@/components/SWRegister";
+import { InstallButton } from "@/components/InstallButton";
+import { TestBanner } from "@/components/TestBanner";
 
 const TITLE = "Chess Tournament · Koh Tao";
 const DESC = "Swiss-system chess tournament at The office, Koh Tao — presented by Antara Freediving. Sign up, live results, podium & clock.";
@@ -24,7 +26,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <div className="wrap">
+          <TestBanner />
           {children}
+          <InstallButton />
           <SponsorFooter />
         </div>
         <TabBar />
