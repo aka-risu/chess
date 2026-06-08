@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Chess, type Color, type Square } from "chess.js";
 import { type Analysis } from "@/lib/engine";
 import { engineAnalyse, engineMove, warmEngine } from "@/lib/stockfish";
+import { cpScore } from "@/lib/review";
+import { fenAfter, sanOf } from "@/lib/moveutil";
 import { ChessBoard } from "@/components/ChessBoard";
 import { PlayNav } from "@/components/PlayNav";
 import { GameReview } from "@/components/GameReview";
@@ -34,10 +36,6 @@ function kingSquare(chess: Chess, color: Color): string | null {
   return null;
 }
 const sideName = (c: Color) => (c === "w" ? "White" : "Black");
-function sanOf(fen: string, mv: { from: string; to: string; promotion?: string }): string {
-  const c = new Chess(fen);
-  try { return c.move({ from: mv.from, to: mv.to, promotion: mv.promotion }).san; } catch { return ""; }
-}
 
 export default function PlayPage() {
   const [moves, setMoves] = useState<string[]>([]);
@@ -142,13 +140,18 @@ export default function PlayPage() {
     // analysis is async, so pause the engine via `checking` until it resolves.
     if (coachOn) {
       const fenBefore = chess.fen();
-      const fenAfter = c.fen();
+      const playedFen = c.fen();
       setChecking(true);
       void (async () => {
+        if (c.isCheckmate()) { setBlunder(null); setChecking(false); return; } // you mated — never a blunder
         const before = await engineAnalyse(fenBefore);
-        const after = await engineAnalyse(fenAfter);
-        const loss = mySide === "w" ? before.cp - after.cp : after.cp - before.cp;
-        setBlunder(loss >= BLUNDER_CP && before.best ? { san: sanOf(fenBefore, before.best) } : null);
+        const bestFen = before.best ? fenAfter(fenBefore, before.best) : playedFen;
+        if (!before.best || bestFen === playedFen) { setBlunder(null); setChecking(false); return; }
+        // Compare eval after best vs after played, both one ply deep (same method as review).
+        const playedAfter = await engineAnalyse(playedFen);
+        const bestAfter = await engineAnalyse(bestFen);
+        const loss = mySide === "w" ? cpScore(bestAfter) - cpScore(playedAfter) : cpScore(playedAfter) - cpScore(bestAfter);
+        setBlunder(loss >= BLUNDER_CP ? { san: sanOf(fenBefore, before.best) } : null);
         setChecking(false);
       })();
     }

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const links = [
   { href: "/play", label: "Practice" },
   { href: "/puzzles", label: "Puzzles" },
+  { href: "/openings", label: "Openings" },
 ];
 
 /** Segmented sub-navigation shared by the Practice and Puzzles pages. */

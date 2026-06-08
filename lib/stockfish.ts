@@ -3,6 +3,7 @@
 // the UCI protocol. Loaded lazily and only in the browser. If the worker fails
 // to start (or we're not in a browser), every call falls back to the small
 // built-in JS engine in ./engine, so the app always works.
+import { Chess } from "chess.js";
 import { analyse as jsAnalyse, chooseMove as jsChoose, type Analysis, type EngineMove } from "./engine";
 
 const SEARCH_TIMEOUT = 6000; // ms before we give up on a search and fall back
@@ -101,6 +102,14 @@ export async function engineMove(fen: string, level: number): Promise<EngineMove
 
 /** Full-strength analysis (White-perspective). Falls back to the JS engine. */
 export async function engineAnalyse(fen: string, depth = 12): Promise<Analysis> {
+  // Terminal positions: return an unambiguous eval (engines report these
+  // inconsistently). Checkmate = decisive for the side that just moved.
+  const pos = new Chess(fen);
+  if (pos.isGameOver()) {
+    const whiteToMove = pos.turn() === "w";
+    const cp = pos.isCheckmate() ? (whiteToMove ? -100_000 : 100_000) : 0;
+    return { best: null, cp, mate: null };
+  }
   try {
     const r = await search(fen, { skill: 20, depth });
     const whiteToMove = fen.split(" ")[1] === "w";

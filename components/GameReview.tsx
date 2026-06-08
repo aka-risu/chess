@@ -6,15 +6,12 @@ import { ChessBoard } from "@/components/ChessBoard";
 import { engineAnalyse } from "@/lib/stockfish";
 import { type Analysis } from "@/lib/engine";
 import { CLASS_META, centipawnLoss, classify, cpScore, type MoveClass } from "@/lib/review";
+import { fenAfter, sanOf } from "@/lib/moveutil";
 
 function posAt(moves: string[], n: number): Chess {
   const c = new Chess();
   for (let i = 0; i < n; i++) { try { c.move(moves[i]); } catch { break; } }
   return c;
-}
-function sanOf(fen: string, mv: { from: string; to: string; promotion?: string }): string {
-  const c = new Chess(fen);
-  try { return c.move({ from: mv.from, to: mv.to, promotion: mv.promotion }).san; } catch { return ""; }
 }
 const noop = () => {};
 
@@ -48,19 +45,31 @@ export function GameReview({ moves, mySide, onClose }: { moves: string[]; mySide
     let cancelled = false;
     const id = setTimeout(async () => {
       const fenBefore = posAt(moves, ply - 1).fen();
-      const fenAfter = posAt(moves, ply).fen();
-      const before = await cached(fenBefore);
-      const after = await cached(fenAfter);
+      const playedPos = posAt(moves, ply);
+      const playedFen = playedPos.fen();
+      const playedMv = playedPos.history({ verbose: true }).at(-1);
+      const before = await cached(fenBefore); // best move from the prior position
       if (cancelled) return;
       const moverWhite = (ply - 1) % 2 === 0;
-      const loss = centipawnLoss(cpScore(before), cpScore(after), moverWhite);
-      const cls = classify(loss);
-      setAnno({
-        forPly: ply, cls, played: moves[ply - 1],
-        bestSan: before.best ? sanOf(fenBefore, before.best) : "",
-        better: cls !== "best" && before.best ? { from: before.best.from, to: before.best.to } : null,
-        cp: after.cp, mate: after.mate,
-      });
+
+      // Eval bar for the resulting position (terminal positions handled directly).
+      let cp = 0, mate: number | null = null;
+      if (playedPos.isCheckmate()) cp = moverWhite ? 100_000 : -100_000;
+      else if (!playedPos.isGameOver()) { const pa = await cached(playedFen); if (cancelled) return; cp = pa.cp; mate = pa.mate; }
+
+      // Did the player play the engine's move? Compare the move itself. A mate is
+      // always "best" — it ends the game.
+      const sameMove = !!before.best && !!playedMv && before.best.from === playedMv.from
+        && before.best.to === playedMv.to && (before.best.promotion ?? "") === (playedMv.promotion ?? "");
+      let cls: MoveClass = "best", bestSan = "", better: { from: string; to: string } | null = null;
+      if (!sameMove && !playedPos.isCheckmate() && before.best) {
+        const bestAfter = await cached(fenAfter(fenBefore, before.best));
+        const playedAfter = playedPos.isGameOver() ? { cp, mate: null } : await cached(playedFen);
+        if (cancelled) return;
+        cls = classify(centipawnLoss(cpScore(bestAfter), cpScore(playedAfter), moverWhite));
+        if (cls !== "best") { bestSan = sanOf(fenBefore, before.best); better = { from: before.best.from, to: before.best.to }; }
+      }
+      setAnno({ forPly: ply, cls, played: moves[ply - 1], bestSan, better, cp, mate });
     }, 0);
     return () => { cancelled = true; clearTimeout(id); };
   }, [ply, moves]);
@@ -88,7 +97,7 @@ export function GameReview({ moves, mySide, onClose }: { moves: string[]; mySide
         <span className="num muted" style={{ fontSize: 12, width: 46, textAlign: "right" }}>{evalLabel}</span>
       </div>
 
-      <div className="card" style={{ marginBottom: 12, borderColor: meta ? meta.color : "var(--line)" }}>
+      <div className="card" style={{ marginBottom: 12, borderColor: meta ? meta.color : "var(--line)", minHeight: 64, display: "flex", flexDirection: "column", justifyContent: "center" }}>
         {ply === 0 ? (
           <div style={{ fontWeight: 700 }}>Starting position — step forward to review each move.</div>
         ) : !cur ? (

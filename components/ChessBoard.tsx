@@ -152,6 +152,13 @@ export function ChessBoard({
                     }}
                   />
                 )}
+                {/* coordinates: ranks up the left edge, files along the bottom edge */}
+                {c === cols[0] && (
+                  <span style={{ position: "absolute", top: 1, left: 2, fontSize: 9, fontWeight: 700, lineHeight: 1, pointerEvents: "none", color: light ? "#7a945a" : "#e9edcc" }}>{rank}</span>
+                )}
+                {r === rows[rows.length - 1] && (
+                  <span style={{ position: "absolute", bottom: 1, right: 2, fontSize: 9, fontWeight: 700, lineHeight: 1, pointerEvents: "none", color: light ? "#7a945a" : "#e9edcc" }}>{file}</span>
+                )}
               </button>
             );
           }),
