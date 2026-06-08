@@ -2,9 +2,11 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { Chess, type Color, type Square } from "chess.js";
-import { analyse, chooseMove, type Analysis } from "@/lib/engine";
+import { type Analysis } from "@/lib/engine";
+import { engineAnalyse, engineMove, warmEngine } from "@/lib/stockfish";
 import { ChessBoard } from "@/components/ChessBoard";
 import { PlayNav } from "@/components/PlayNav";
+import { GameReview } from "@/components/GameReview";
 
 const BLUNDER_CP = 150; // centipawns lost vs best to flag a blunder
 
@@ -52,18 +54,21 @@ export default function PlayPage() {
   const [coachEval, setCoachEval] = useState<(Analysis & { fen: string }) | null>(null);
   const [hintMove, setHintMove] = useState<{ from: string; to: string; fen: string } | null>(null);
   const [blunder, setBlunder] = useState<{ san: string } | null>(null);
+  const [checking, setChecking] = useState(false); // coach analysing your move
+  const [reviewing, setReviewing] = useState(false); // post-game review open
 
   const chess = useMemo(() => fromMoves(moves), [moves]);
   const turn = chess.turn();
   const over = chess.isGameOver() || resigned;
   const aiTurn = mode === "ai" && loaded && !over && turn !== mySide; // engine to move
   const coachOn = coach && mode === "ai";
-  const thinking = aiTurn && !blunder; // a pending blunder alert holds the engine
+  const thinking = aiTurn && !blunder && !checking; // a pending alert / coach check holds the engine
   const canMove = loaded && !over && (mode === "duo" || turn === mySide);
   const boardOrientation = mode === "duo" && autoFlip ? turn : orientation;
 
   // Restore the saved game once, after mount (raf keeps it off the render path).
   useEffect(() => {
+    warmEngine(); // start Stockfish loading early
     const raf = requestAnimationFrame(() => {
       try {
         const raw = localStorage.getItem(PLAY_KEY);
@@ -93,10 +98,10 @@ export default function PlayPage() {
   useEffect(() => {
     if (!coachOn || !loaded || over) return;
     let cancelled = false;
-    const id = setTimeout(() => {
+    const id = setTimeout(async () => {
       if (cancelled) return;
       const f = chess.fen();
-      const a = analyse(f, 3);
+      const a = await engineAnalyse(f);
       if (!cancelled) setCoachEval({ ...a, fen: f });
     }, 60);
     return () => { cancelled = true; clearTimeout(id); };
@@ -105,19 +110,20 @@ export default function PlayPage() {
   // When it's the engine's turn (AI mode only), think — deferred so the UI can
   // paint first — and append its reply. setState lives in the timeout callback.
   useEffect(() => {
-    if (!aiTurn || blunder) return; // a pending blunder alert pauses the engine
+    if (!aiTurn || blunder || checking) return; // a pending alert / coach check pauses the engine
     let cancelled = false;
-    const id = setTimeout(() => {
+    const id = setTimeout(async () => {
       if (cancelled) return;
-      const mv = chooseMove(chess.fen(), level);
-      if (!mv) return;
-      const c = new Chess(chess.fen());
+      const fen = chess.fen();
+      const mv = await engineMove(fen, level);
+      if (cancelled || !mv) return;
+      const c = new Chess(fen);
       let san: string | null = null;
       try { san = c.move({ from: mv.from, to: mv.to, promotion: mv.promotion }).san; } catch { /* ignore */ }
       if (san) setMoves((ms) => [...ms, san!]);
     }, 140);
     return () => { cancelled = true; clearTimeout(id); };
-  }, [aiTurn, blunder, chess, level]);
+  }, [aiTurn, blunder, checking, chess, level]);
 
   const targets = new Set(selected ? chess.moves({ square: selected, verbose: true }).map((m) => m.to) : []);
   const histLast = chess.history({ verbose: true }).at(-1);
@@ -132,12 +138,19 @@ export default function PlayPage() {
     if (!san) return false;
     setSelected(null);
     setHintMove(null);
-    // Coach: flag the human's move if it loses ≥ BLUNDER_CP vs the best move.
+    // Coach: flag the human's move if it loses ≥ BLUNDER_CP vs the best move. The
+    // analysis is async, so pause the engine via `checking` until it resolves.
     if (coachOn) {
-      const before = analyse(chess.fen(), 2);
-      const after = analyse(c.fen(), 2);
-      const loss = mySide === "w" ? before.cp - after.cp : after.cp - before.cp;
-      setBlunder(loss >= BLUNDER_CP && before.best ? { san: sanOf(chess.fen(), before.best) } : null);
+      const fenBefore = chess.fen();
+      const fenAfter = c.fen();
+      setChecking(true);
+      void (async () => {
+        const before = await engineAnalyse(fenBefore);
+        const after = await engineAnalyse(fenAfter);
+        const loss = mySide === "w" ? before.cp - after.cp : after.cp - before.cp;
+        setBlunder(loss >= BLUNDER_CP && before.best ? { san: sanOf(fenBefore, before.best) } : null);
+        setChecking(false);
+      })();
     }
     setMoves((ms) => [...ms, san!]);
     return true;
@@ -169,11 +182,11 @@ export default function PlayPage() {
     if (next.mode) setMode(next.mode);
     if (next.side) setMySide(next.side);
     if (next.level) setLevel(next.level);
-    setMoves([]); setResigned(false); setSelected(null); setBlunder(null); setHintMove(null);
+    setMoves([]); setResigned(false); setSelected(null); setBlunder(null); setHintMove(null); setReviewing(false);
     setOrientation(m === "duo" ? "w" : side);
   };
   const undo = () => {
-    if (thinking) return;
+    if (thinking || checking) return;
     setMoves((ms) => {
       const n = ms.slice(0, -1);
       // In AI mode also undo your own move so it's your turn again.
@@ -184,9 +197,10 @@ export default function PlayPage() {
   };
   const resign = () => { if (!over) setResigned(true); };
   const flip = () => setOrientation((o) => (o === "w" ? "b" : "w"));
-  const showHint = () => {
-    const a = coachEval && coachEval.fen === chess.fen() ? coachEval : analyse(chess.fen(), 3);
-    if (a.best) setHintMove({ from: a.best.from, to: a.best.to, fen: chess.fen() });
+  const showHint = async () => {
+    const f = chess.fen();
+    const a = coachEval && coachEval.fen === f ? coachEval : await engineAnalyse(f);
+    if (a.best) setHintMove({ from: a.best.from, to: a.best.to, fen: f });
   };
   const hint = hintMove && hintMove.fen === chess.fen() ? { from: hintMove.from, to: hintMove.to } : null;
 
@@ -199,6 +213,7 @@ export default function PlayPage() {
     if (chess.isStalemate()) return "Stalemate — draw.";
     if (chess.isInsufficientMaterial()) return "Draw — insufficient material.";
     if (chess.isDraw()) return "Draw.";
+    if (checking) return "Coach is checking your move…";
     if (thinking) return "Bot is thinking…";
     const who = mode === "duo" ? `${sideName(turn)} to move` : "Your move";
     return chess.isCheck() ? `${who} — in check.` : `${who}.`;
@@ -224,6 +239,10 @@ export default function PlayPage() {
       </div>
       <PlayNav />
 
+      {reviewing ? (
+        <GameReview moves={moves} mySide={mode === "duo" ? "w" : mySide} onClose={() => setReviewing(false)} />
+      ) : (
+      <>
       <div className="card" style={{ marginBottom: 12, borderColor: "var(--accent)" }}>
         <span className="kicker">Status</span>
         <div style={{ fontSize: 18, fontWeight: 800, marginTop: 4 }}>{status}</div>
@@ -260,11 +279,24 @@ export default function PlayPage() {
         lastMove={lastMove} checkSquare={checkSquare} hint={hint} onSquare={onSquare} onMove={onMove} disabled={!canMove} />
 
       <div className="row" style={{ gap: 8, marginTop: 12 }}>
-        <button className="btn grow" onClick={undo} disabled={thinking || moves.length === 0}>↩ Undo</button>
-        {coachOn && <button className="btn ghost grow" onClick={showHint} disabled={!canMove}>💡 Hint</button>}
+        <button className="btn grow" onClick={undo} disabled={thinking || checking || moves.length === 0}>↩ Undo</button>
         {!(mode === "duo" && autoFlip) && <button className="btn ghost grow" onClick={flip}>⇅ Flip</button>}
         <button className="btn ghost grow" onClick={resign} disabled={over}>Resign</button>
       </div>
+
+      {mode === "ai" && (
+        <div className="row" style={{ gap: 8, marginTop: 8 }}>
+          <button className="btn grow" onClick={() => setCoach((v) => !v)}
+            style={coach ? { background: "var(--accent)", color: "#0b0d10", borderColor: "var(--accent)" } : undefined}>
+            🧠 Coach {coach ? "on" : "off"}
+          </button>
+          {coachOn && <button className="btn ghost grow" onClick={showHint} disabled={!canMove}>💡 Hint</button>}
+        </div>
+      )}
+
+      {over && moves.length > 0 && (
+        <button className="btn block" style={{ marginTop: 8 }} onClick={() => setReviewing(true)}>🔍 Review game</button>
+      )}
 
       <div className="card stack" style={{ marginTop: 12 }}>
         <span className="kicker">Mode</span>
@@ -284,10 +316,6 @@ export default function PlayPage() {
               {segBtn(mySide === "w", "White ⚪", () => newGame({ side: "w" }))}
               {segBtn(mySide === "b", "Black ⚫", () => newGame({ side: "b" }))}
             </div>
-            <label className="row" style={{ gap: 10, marginTop: 8 }}>
-              <input type="checkbox" checked={coach} onChange={(e) => setCoach(e.target.checked)} style={{ width: 22, height: 22 }} />
-              <span>Coach <span className="muted">(eval bar, hints, blunder alerts)</span></span>
-            </label>
           </>
         ) : (
           <label className="row" style={{ gap: 10, marginTop: 6 }}>
@@ -303,9 +331,11 @@ export default function PlayPage() {
             : "Built-in offline engine. Pawns auto-promote to a queen. Switching mode or colour starts a new game."}
         </p>
         <p className="muted" style={{ fontSize: 10, marginTop: 4, opacity: 0.7 }}>
-          Pieces: “cburnett” by Colin M.L. Burnett (CC BY-SA 3.0).
+          Engine: Stockfish (GPLv3). Pieces: “cburnett” by Colin M.L. Burnett (CC BY-SA 3.0).
         </p>
       </div>
+      </>
+      )}
     </>
   );
 }
