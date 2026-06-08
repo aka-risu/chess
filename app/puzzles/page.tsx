@@ -52,15 +52,20 @@ export default function PuzzlesPage() {
     setPuzzle(p); setPlies([]); setRevealed(false); setWrong(false); setSelected(null); setIsDaily(daily);
   };
 
-  // Mount: restore streak, pick today's date, load an opening puzzle.
+  // Mount: restore streak, pick today's date, and open on today's daily challenge
+  // (unless it's already done) so the streak-relevant puzzle is front and centre.
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
-      setToday(dateStr());
+      const t = dateStr();
+      setToday(t);
+      let s: Streak = { count: 0, last: null };
       try {
         const raw = localStorage.getItem(STREAK_KEY);
-        if (raw) { const s = JSON.parse(raw); if (typeof s?.count === "number") setStreak({ count: s.count, last: s.last ?? null }); }
+        if (raw) { const p = JSON.parse(raw); if (typeof p?.count === "number") s = { count: p.count, last: p.last ?? null }; }
       } catch { /* ignore */ }
-      loadPuzzle(randomPuzzle(null), false);
+      setStreak(s);
+      const doneToday = s.last === t;
+      loadPuzzle(doneToday ? randomPuzzle(null) : dailyPuzzle(t), !doneToday);
       setLoaded(true);
     });
     return () => cancelAnimationFrame(raf);
@@ -153,19 +158,27 @@ export default function PuzzlesPage() {
 
       <div className="card row" style={{ justifyContent: "space-between", marginBottom: 12, borderColor: "var(--accent-2)" }}>
         <div>
-          <span className="kicker">Daily challenge</span>
+          <span className="kicker">Daily challenge · one puzzle a day</span>
           <div style={{ fontSize: 15, fontWeight: 700, marginTop: 2 }}>
-            🔥 {liveN}-day streak{dailyDone ? " · done today ✓" : ""}
+            🔥 {liveN}-day streak{dailyDone ? " · solved today ✓" : ""}
           </div>
         </div>
         <button className="btn" onClick={() => loadPuzzle(dailyPuzzle(today), true)} disabled={!today}>
-          {dailyDone ? "Replay" : "Solve"}
+          {dailyDone ? "Replay" : "Solve today"}
         </button>
       </div>
 
       <div className="card" style={{ marginBottom: 12, borderColor: solved ? "var(--accent)" : "var(--accent-2)" }}>
-        <span className="kicker">{isDaily ? "Daily puzzle" : "Puzzle"} · rated {puzzle.rating}</span>
-        <div style={{ fontSize: 18, fontWeight: 800, marginTop: 4 }}>{status}</div>
+        <div className="row" style={{ justifyContent: "space-between" }}>
+          <span className="pill" style={{
+            background: isDaily ? "var(--accent-2)" : "var(--surface-2)",
+            color: isDaily ? "#0b0d10" : "var(--ink-soft)", fontWeight: 800,
+          }}>
+            {isDaily ? "★ Daily challenge" : theme ? `Training · ${THEME_LABELS[theme]}` : "Training"}
+          </span>
+          <span className="num muted" style={{ fontSize: 11 }}>rated {puzzle.rating}</span>
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 800, marginTop: 6 }}>{status}</div>
       </div>
 
       <ChessBoard
@@ -188,7 +201,7 @@ export default function PuzzlesPage() {
           {THEME_KEYS.map((k) => chip(theme === k, THEME_LABELS[k], () => { setTheme(k); loadPuzzle(randomPuzzle(k), false); }, k))}
         </div>
         <p className="muted" style={{ fontSize: 12, marginTop: 2 }}>
-          Pick a theme to train, or take the daily challenge to keep your streak alive. Pawns auto-promote to a queen.
+          Training puzzles don’t affect your streak — only the daily challenge does. Pawns auto-promote to a queen.
         </p>
         <p className="muted" style={{ fontSize: 10, opacity: 0.7 }}>Puzzles from the Lichess database (CC0).</p>
       </div>
