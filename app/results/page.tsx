@@ -1,10 +1,11 @@
 // app/results/page.tsx
 "use client";
 import { useEffect, useState } from "react";
-import { cachedTournament, getTournament, listSignups, subscribeTournament } from "@/lib/supabase";
+import { cachedTournament, getTournament, listSignups, saveGameMoves, subscribeTournament } from "@/lib/supabase";
 import { allDone, deriveData, roundComplete, standings } from "@/lib/swiss";
 import type { Tournament } from "@/lib/types";
 import { csvFilename, downloadText, tournamentCsv } from "@/lib/export";
+import { hasRecordedMoves, tournamentPgn } from "@/lib/pgn";
 import { SPONSOR } from "@/lib/sponsor";
 import { StatusPill } from "@/components/StatusPill";
 import { MyMatch } from "@/components/MyMatch";
@@ -70,7 +71,8 @@ export default function ResultsPage() {
         if (g.b !== null) board++;
         return (
           <PairingBoard key={gi} game={g} board={board} nameOf={nameOf}
-            wpts={d[g.w]?.score ?? 0} bpts={g.b ? d[g.b]?.score ?? 0 : 0} editable={false} />
+            wpts={d[g.w]?.score ?? 0} bpts={g.b ? d[g.b]?.score ?? 0 : 0} editable={false}
+            onSaveMoves={(moves) => saveGameMoves(view, gi, moves)} />
         );
       })}
 
@@ -80,6 +82,12 @@ export default function ResultsPage() {
 
       <button className="btn block ghost" style={{ marginTop: 20 }}
         onClick={() => downloadText(csvFilename(t), tournamentCsv(t))}>⬇ Download results (CSV)</button>
+      {hasRecordedMoves(t) && (
+        <button className="btn block ghost" style={{ marginTop: 10 }}
+          onClick={() => downloadText(`${csvFilename(t).replace(/-results\.csv$/, "")}.pgn`, tournamentPgn(t), "application/x-chess-pgn")}>
+          ♟ Download games (PGN)
+        </button>
+      )}
     </>
   );
 }

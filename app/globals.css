@@ -125,6 +125,16 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(198,247,63
 .finished .label { color: var(--accent); }
 .finished .win { font-size: 28px; font-weight: 800; margin-top: 6px; }
 
+/* Subtle chess watermarks (decorative; kept off data tables for readability) */
+.event, .finished, .empty { position: relative; overflow: hidden; }
+.event::after, .finished::after, .empty::after {
+  position: absolute; right: -8px; bottom: -28px; font-size: 130px; line-height: 1;
+  pointer-events: none; user-select: none;
+}
+.event::after { content: "♞"; color: var(--ink); opacity: .05; }
+.finished::after { content: "♛"; color: var(--accent); opacity: .08; }
+.empty::after { content: "♟"; color: var(--ink); opacity: .045; }
+
 /* Test-mode banner */
 .testbar {
   position: sticky; top: 0; z-index: 60; margin: -18px -16px 14px;

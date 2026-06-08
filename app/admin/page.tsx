@@ -2,12 +2,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import {
-  addSignup, cachedSignups, cachedTournament, getTournament, listSignups, removeSignup, saveTournament, subscribeSignups, subscribeTournament, upsertHistory,
+  addSignup, cachedSignups, cachedTournament, getTournament, listSignups, removeSignup, saveGameMoves, saveTournament, subscribeSignups, subscribeTournament, upsertHistory,
 } from "@/lib/supabase";
 import {
   allDone, clampRounds, deriveData, generateRound, recommendedRounds, roundComplete, standings,
 } from "@/lib/swiss";
-import type { Signup, Tournament, TournamentState } from "@/lib/types";
+import { levelShort, type Signup, type Tournament, type TournamentState } from "@/lib/types";
 import { csvFilename, downloadText, tournamentCsv } from "@/lib/export";
 import { StatusPill } from "@/components/StatusPill";
 import { PairingBoard } from "@/components/PairingBoard";
@@ -88,7 +88,7 @@ export default function AdminPage() {
     const n = chosen.size;
     const start = async () => {
       if (n < 7 || n > 16) return;
-      const players = signups.filter((sg) => chosen.has(sg.id)).map((sg) => ({ id: sg.id, name: sg.name }));
+      const players = signups.filter((sg) => chosen.has(sg.id)).map((sg) => ({ id: sg.id, name: sg.name, level: sg.level }));
       const state: TournamentState = { players, schedule: [], viewRound: 1, uid: crypto.randomUUID() };
       state.schedule.push(generateRound(state));
       state.viewRound = 1;
@@ -111,6 +111,7 @@ export default function AdminPage() {
               <label className="row" style={{ gap: 10 }}>
                 <input type="checkbox" checked={chosen.has(sg.id)} onChange={() => toggle(sg.id)} style={{ width: 22, height: 22 }} />
                 {sg.name}
+                {sg.level && <span className="pill" style={{ padding: "2px 8px", fontSize: 10 }}>{levelShort(sg.level)}</span>}
               </label>
               <button className="btn danger" onClick={() => removeSignup(sg.id)}>Delete</button>
             </div>
@@ -259,7 +260,8 @@ export default function AdminPage() {
         return (
           <PairingBoard key={gi} game={g} board={board} nameOf={nameOf}
             wpts={d[g.w]?.score ?? 0} bpts={g.b ? d[g.b]?.score ?? 0 : 0}
-            editable={isLatest} onResult={(res) => setResult(gi, res)} />
+            editable={isLatest} onResult={(res) => setResult(gi, res)}
+            onSaveMoves={(moves) => saveGameMoves(view, gi, moves)} />
         );
       })}
       <div className="stack" style={{ marginTop: 16 }}>

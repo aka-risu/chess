@@ -194,13 +194,17 @@ export function generateRound(state: TournamentState, rng: Rng = Math.random): R
   const roundIndex = state.schedule.length;
   const d = deriveData(state);
 
+  const seedOf = (p: Player) => p.level ?? 0; // higher = stronger
+
   let pool: Player[];
   if (roundIndex === 0) {
-    pool = shuffle(state.players, rng);
+    // Round 1: seed by level (desc), random within equal level.
+    pool = shuffle(state.players.slice(), rng).sort((a, b) => seedOf(b) - seedOf(a));
   } else {
+    // Later rounds: by score, then level (rating order within score group), then Buchholz.
     pool = shuffle(state.players.slice(), rng).sort((a, b) => {
       const A = d[a.id], B = d[b.id];
-      return B.score - A.score || B.buch - A.buch;
+      return B.score - A.score || seedOf(b) - seedOf(a) || B.buch - A.buch;
     });
   }
 
@@ -221,7 +225,16 @@ export function generateRound(state: TournamentState, rng: Rng = Math.random): R
     }
   }
 
-  const pairs = matchPairs(pool, d, false) ?? matchPairs(pool, d, true) ?? [];
+  let pairs: [Player, Player][];
+  if (roundIndex === 0) {
+    // Seeded fold: top half plays bottom half (#1 vs the median seed, etc.).
+    const half = pool.length / 2;
+    pairs = [];
+    for (let i = 0; i < half; i++) pairs.push([pool[i], pool[i + half]]);
+  } else {
+    pairs = matchPairs(pool, d, false) ?? matchPairs(pool, d, true) ?? [];
+  }
+
   const games: Round = pairs.map(([a, b]) => assignColors(a, b, d));
 
   if (byePlayer) {

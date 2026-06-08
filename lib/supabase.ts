@@ -117,6 +117,21 @@ export async function saveState(state: TournamentState): Promise<void> {
   return saveTournament({ state });
 }
 
+/**
+ * Record a game's moves with a fresh read-modify-write, so a player editing
+ * notation doesn't clobber a concurrent result entry. Anyone may record moves.
+ */
+export async function saveGameMoves(roundIdx: number, gameIdx: number, moves: string): Promise<void> {
+  const t = await getTournament();
+  if (!t) return;
+  const state: TournamentState = structuredClone(t.state);
+  const game = state.schedule[roundIdx]?.[gameIdx];
+  if (!game) return;
+  const trimmed = moves.trim();
+  if (trimmed) game.moves = trimmed; else delete game.moves;
+  await saveTournament({ state });
+}
+
 export async function listSignups(): Promise<Signup[]> {
   if (isTestMode()) return (await ensureTestSeed()).signups;
   const { data, error } = await supabase().from("signups").select("*").order("created_at");
@@ -125,13 +140,13 @@ export async function listSignups(): Promise<Signup[]> {
   return _cacheS;
 }
 
-export async function addSignup(name: string): Promise<Signup | null> {
+export async function addSignup(name: string, level?: number): Promise<Signup | null> {
   if (isTestMode()) {
     const d = await ensureTestSeed();
-    const row: Signup = { id: crypto.randomUUID(), name, created_at: new Date().toISOString() };
+    const row: Signup = { id: crypto.randomUUID(), name, level, created_at: new Date().toISOString() };
     d.signups.push(row); notify("signups"); return row;
   }
-  const { data, error } = await supabase().from("signups").insert({ name }).select().single();
+  const { data, error } = await supabase().from("signups").insert({ name, level }).select().single();
   if (error) { console.error("addSignup", error); return null; }
   return data as Signup;
 }

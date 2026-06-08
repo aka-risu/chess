@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { addSignup, cachedSignups, cachedTournament, getTournament, listSignups, removeSignup, subscribeSignups, subscribeTournament } from "@/lib/supabase";
 import { standings } from "@/lib/swiss";
-import type { Signup, Tournament } from "@/lib/types";
+import { DEFAULT_LEVEL, LEVELS, levelShort, type Signup, type Tournament } from "@/lib/types";
 import { Countdown, formatEventDate } from "@/components/Countdown";
 import { MyMatch } from "@/components/MyMatch";
 import { SPONSOR } from "@/lib/sponsor";
@@ -17,6 +17,7 @@ const DEFAULT_LOCATION = "The office, Koh Tao";
 
 export default function SignupPage() {
   const [name, setName] = useState("");
+  const [level, setLevel] = useState(DEFAULT_LEVEL);
   const [signups, setSignups] = useState<Signup[]>(cachedSignups() ?? []);
   const [t, setT] = useState<Tournament | null>(cachedTournament());
   const [mine, setMineState] = useState<string[]>([]);
@@ -40,7 +41,7 @@ export default function SignupPage() {
     const n = name.trim();
     if (!n || busy) return;
     setBusy(true);
-    const row = await addSignup(n);
+    const row = await addSignup(n, level);
     setBusy(false);
     if (row) {
       const next = [...getMine(), row.id]; setMine(next); setMineState(next);
@@ -133,6 +134,18 @@ export default function SignupPage() {
       <div className="stack" style={{ margin: "16px 0" }}>
         <input type="text" placeholder="Your name" value={name} maxLength={40}
           onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} />
+        <span className="kicker">Your level</span>
+        <div className="row" style={{ gap: 6 }}>
+          {LEVELS.map((l) => (
+            <button key={l.value} onClick={() => setLevel(l.value)} className="num"
+              style={{
+                flex: 1, minHeight: 44, borderRadius: 8, border: "1px solid var(--line)",
+                background: level === l.value ? "var(--accent)" : "var(--surface-2)",
+                color: level === l.value ? "#0b0d10" : "var(--ink-soft)", fontWeight: level === l.value ? 800 : 600,
+                fontSize: 12, textTransform: "uppercase", letterSpacing: ".03em",
+              }}>{l.label}</button>
+          ))}
+        </div>
         <button className="btn block" onClick={submit} disabled={!name.trim() || busy}>Sign me up</button>
       </div>
 
@@ -142,7 +155,10 @@ export default function SignupPage() {
         <div className="stack" style={{ marginTop: 10 }}>
           {signups.map((sgn, i) => (
             <div key={sgn.id} className="card row" style={{ justifyContent: "space-between" }}>
-              <span><span className="num" style={{ color: "var(--accent)", marginRight: 10 }}>{i + 1}</span>{sgn.name}</span>
+              <span className="row" style={{ gap: 8 }}>
+                <span className="num" style={{ color: "var(--accent)" }}>{i + 1}</span>{sgn.name}
+                {sgn.level && <span className="pill" style={{ padding: "2px 8px", fontSize: 10 }}>{levelShort(sgn.level)}</span>}
+              </span>
               {mine.includes(sgn.id) && <button className="btn danger" onClick={() => withdraw(sgn.id)}>Remove</button>}
             </div>
           ))}
@@ -155,7 +171,9 @@ export default function SignupPage() {
               <span className="muted">You&apos;re signed up:</span>
               {myEntries.map((sgn) => (
                 <div key={sgn.id} className="card row" style={{ justifyContent: "space-between" }}>
-                  <span>✓ {sgn.name}</span>
+                  <span className="row" style={{ gap: 8 }}>✓ {sgn.name}
+                    {sgn.level && <span className="pill" style={{ padding: "2px 8px", fontSize: 10 }}>{levelShort(sgn.level)}</span>}
+                  </span>
                   <button className="btn danger" onClick={() => withdraw(sgn.id)}>Remove</button>
                 </div>
               ))}

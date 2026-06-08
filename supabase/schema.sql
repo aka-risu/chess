@@ -43,8 +43,11 @@ alter table tournament_history add column if not exists state jsonb;
 create table if not exists signups (
   id          uuid primary key default gen_random_uuid(),
   name        text not null,
+  level       int,
   created_at  timestamptz not null default now()
 );
+-- Migration for existing signups tables:
+alter table signups add column if not exists level int;
 
 -- seed the single tournament row
 insert into tournament (id) values ('current') on conflict (id) do nothing;

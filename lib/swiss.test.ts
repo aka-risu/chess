@@ -1,7 +1,7 @@
 // lib/swiss.test.ts
 import { describe, it, expect } from "vitest";
 import { deriveData, standings } from "./swiss";
-import type { TournamentState } from "./types";
+import type { Player, TournamentState } from "./types";
 
 function s(players: string[], schedule: TournamentState["schedule"]): TournamentState {
   return { players: players.map((id) => ({ id, name: id.toUpperCase() })), schedule, viewRound: 1 };
@@ -126,5 +126,25 @@ describe("roundComplete / allDone", () => {
     const st = s(["a", "b"], [[{ w: "a", b: "b", res: "w" }]]);
     expect(allDone(st, 1)).toBe(true);
     expect(allDone(st, 2)).toBe(false);
+  });
+});
+
+describe("generateRound level seeding", () => {
+  it("round 1 folds top-half levels against bottom-half (no top-vs-top)", () => {
+    const players: Player[] = [
+      { id: "a1", name: "A1", level: 3 }, { id: "a2", name: "A2", level: 3 },
+      { id: "a3", name: "A3", level: 3 }, { id: "a4", name: "A4", level: 3 },
+      { id: "b1", name: "B1", level: 1 }, { id: "b2", name: "B2", level: 1 },
+      { id: "b3", name: "B3", level: 1 }, { id: "b4", name: "B4", level: 1 },
+    ];
+    const state: TournamentState = { players, schedule: [], viewRound: 1 };
+    const round = generateRound(state);
+    const lvl = (id: string) => players.find((p) => p.id === id)!.level;
+    // Every board pairs one strong (3) with one beginner (1).
+    for (const g of round) {
+      if (g.b === null) continue;
+      const levels = [lvl(g.w), lvl(g.b)].sort();
+      expect(levels).toEqual([1, 3]);
+    }
   });
 });

@@ -4,6 +4,23 @@ export type Id = string;
 export interface Player {
   id: Id;
   name: string;
+  level?: number; // self-rated tier (see LEVELS); higher = stronger. Used for Swiss seeding.
+}
+
+/** Self-rated skill tiers. `value` is the seed weight (higher = stronger). */
+export const LEVELS = [
+  { value: 1, label: "Beginner", short: "B" },
+  { value: 2, label: "Intermediate", short: "I" },
+  { value: 3, label: "Advanced", short: "A" },
+] as const;
+
+export const DEFAULT_LEVEL = 2; // Intermediate
+
+export function levelShort(level?: number): string {
+  return LEVELS.find((l) => l.value === level)?.short ?? "";
+}
+export function levelLabel(level?: number): string {
+  return LEVELS.find((l) => l.value === level)?.label ?? "";
 }
 
 /** Game result: null = unreported, 'w' white win, 'b' black win, 'd' draw, 'bye' */
@@ -13,6 +30,7 @@ export interface Game {
   w: Id;
   b: Id | null; // null => bye
   res: GameResult;
+  moves?: string; // optional recorded game notation (free-form SAN/PGN movetext)
 }
 
 export type Round = Game[];
@@ -45,6 +63,7 @@ export interface Tournament {
 export interface Signup {
   id: string;
   name: string;
+  level?: number; // chosen at sign-up
   created_at: string;
 }
 
