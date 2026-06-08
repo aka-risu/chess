@@ -8,6 +8,7 @@ import { OPENINGS, canonicalLine, type Opening } from "@/lib/openings";
 
 type TrainerMode = "learn" | "drill";
 const LEARNED_KEY = "swiss_openings_learned";
+const SHORT_PLIES = 10; // default depth (~5 moves each) before "Full line" is expanded
 
 function replaySan(moves: string[]): Chess {
   const c = new Chess();
@@ -32,8 +33,10 @@ export default function OpeningsPage() {
   const [wrong, setWrong] = useState(false);
   const [selected, setSelected] = useState<Square | null>(null);
   const [learned, setLearned] = useState<string[]>([]);
+  const [expanded, setExpanded] = useState(false);
 
-  const line = useMemo(() => canonicalLine(opening.moves), [opening]);
+  const fullLine = useMemo(() => canonicalLine(opening.moves), [opening]);
+  const line = useMemo(() => (expanded ? fullLine : fullLine.slice(0, Math.min(SHORT_PLIES, fullLine.length))), [fullLine, expanded]);
   const total = line.length;
 
   // Restore the "learned" set once, after mount.
@@ -57,7 +60,8 @@ export default function OpeningsPage() {
   });
   const isLearned = learned.includes(opening.id);
 
-  const load = (o: Opening) => { setOpening(o); setLearnPly(0); setPlies([]); setWrong(false); setSelected(null); };
+  const load = (o: Opening) => { setOpening(o); setExpanded(false); setLearnPly(0); setPlies([]); setWrong(false); setSelected(null); };
+  const toggleExpand = () => { setExpanded((e) => !e); setLearnPly(0); setPlies([]); setWrong(false); setSelected(null); };
   const switchMode = (m: TrainerMode) => { setMode(m); setLearnPly(0); setPlies([]); setWrong(false); setSelected(null); };
 
   // ---------- Learn mode ----------
@@ -169,7 +173,15 @@ export default function OpeningsPage() {
 
       {/* Move list — in Drill mode only the moves already played are shown (no peeking). */}
       <div className="card" style={{ marginTop: 12 }}>
-        <span className="kicker">Moves</span>
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+          <span className="kicker">Moves</span>
+          {fullLine.length > SHORT_PLIES && (
+            <button onClick={toggleExpand} className="num"
+              style={{ background: "none", border: "none", color: "var(--accent)", fontSize: 11, cursor: "pointer", padding: 0 }}>
+              {expanded ? "▴ Short line" : "▾ Full line"}
+            </button>
+          )}
+        </div>
         <div className="row" style={{ flexWrap: "wrap", gap: "2px 6px", marginTop: 6 }}>
           {!learning && idx === 0 && <span className="muted" style={{ fontSize: 13 }}>Hidden — play it from memory.</span>}
           {line.map((san, i) => {
