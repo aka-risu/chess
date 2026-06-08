@@ -4,11 +4,14 @@ import { useRef, useState } from "react";
 import type { Color, PieceSymbol, Square } from "chess.js";
 
 const FILES = "abcdefgh";
-const GLYPH: Record<PieceSymbol, string> = { p: "♟", n: "♞", b: "♝", r: "♜", q: "♛", k: "♚" };
 const DRAG_THRESHOLD = 8; // px of movement before a press becomes a drag (vs a tap)
 
 type Cell = { color: Color; type: PieceSymbol } | null;
-type Drag = { from: Square; piece: Cell; x: number; y: number; over: Square | null };
+type Drag = { from: Square; piece: Cell; x: number; y: number; over: Square | null; size: number };
+
+// cburnett SVG set (public/pieces). Filenames are e.g. wK.svg / bP.svg.
+const pieceSrc = (cell: { color: Color; type: PieceSymbol }) =>
+  `/pieces/${cell.color}${cell.type.toUpperCase()}.svg`;
 
 /**
  * Presentational chess board, fully pointer-driven so it behaves on touch:
@@ -64,6 +67,7 @@ export function ChessBoard({
       from: p.from, piece: pieceAt(p.from),
       x: e.clientX - rect.left, y: e.clientY - rect.top,
       over: squareAt(e.clientX, e.clientY),
+      size: (rect.width / 8) * 1.1, // lift the piece a touch larger than its square
     });
   };
   const onPointerUp = (e: React.PointerEvent) => {
@@ -125,18 +129,15 @@ export function ChessBoard({
                 }}
               >
                 {cell && (
-                  <span
+                  // Tiny static SVGs swapped every move — next/image optimization doesn't apply.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={pieceSrc(cell)} alt="" draggable={false}
                     style={{
+                      width: "100%", height: "100%", pointerEvents: "none",
                       visibility: beingDragged ? "hidden" : "visible",
-                      color: cell.color === "w" ? "#fafafa" : "#1a1a1a",
-                      textShadow: cell.color === "w"
-                        ? "0 1px 1px rgba(0,0,0,.45)"
-                        : "0 1px 1px rgba(255,255,255,.25)",
-                      pointerEvents: "none",
                     }}
-                  >
-                    {GLYPH[cell.type]}
-                  </span>
+                  />
                 )}
                 {isTarget && !beingDragged && (
                   <span
@@ -155,16 +156,15 @@ export function ChessBoard({
       </div>
 
       {drag?.piece && (
-        <span
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={pieceSrc(drag.piece)} alt="" draggable={false}
           style={{
-            position: "absolute", left: drag.x, top: drag.y, transform: "translate(-50%, -50%)",
-            pointerEvents: "none", fontSize: "min(9vw, 40px)", lineHeight: 1, zIndex: 5,
-            color: drag.piece.color === "w" ? "#fafafa" : "#1a1a1a",
-            textShadow: drag.piece.color === "w" ? "0 2px 3px rgba(0,0,0,.5)" : "0 2px 3px rgba(255,255,255,.3)",
+            position: "absolute", left: drag.x, top: drag.y, width: drag.size, height: drag.size,
+            transform: "translate(-50%, -50%)", pointerEvents: "none", zIndex: 5,
+            filter: "drop-shadow(0 3px 4px rgba(0,0,0,.5))",
           }}
-        >
-          {GLYPH[drag.piece.type]}
-        </span>
+        />
       )}
     </div>
   );

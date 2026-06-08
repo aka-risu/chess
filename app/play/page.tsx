@@ -229,6 +229,9 @@ export default function PlayPage() {
             ? "Hand the device back and forth — each side moves in turn. Pawns auto-promote to a queen."
             : "Built-in offline engine. Pawns auto-promote to a queen. Switching mode or colour starts a new game."}
         </p>
+        <p className="muted" style={{ fontSize: 10, marginTop: 4, opacity: 0.7 }}>
+          Pieces: “cburnett” by Colin M.L. Burnett (CC BY-SA 3.0).
+        </p>
       </div>
     </>
   );

@@ -1,7 +1,8 @@
 // public/sw.js — minimal offline cache for the app shell.
 // Same-origin only; Supabase/API calls always go to the network.
-const CACHE = "chess-v2";
-const CORE = ["/", "/results", "/play", "/history", "/clock", "/icon.svg", "/manifest.webmanifest"];
+const CACHE = "chess-v3";
+const PIECES = ["wK", "wQ", "wR", "wB", "wN", "wP", "bK", "bQ", "bR", "bB", "bN", "bP"].map((p) => `/pieces/${p}.svg`);
+const CORE = ["/", "/results", "/play", "/history", "/clock", "/icon.svg", "/manifest.webmanifest", ...PIECES];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(
