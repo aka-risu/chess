@@ -97,22 +97,23 @@ export function GameReview({ moves, mySide, onClose }: { moves: string[]; mySide
         <span className="num muted" style={{ fontSize: 12, width: 46, textAlign: "right" }}>{evalLabel}</span>
       </div>
 
-      <div className="card" style={{ marginBottom: 12, borderColor: meta ? meta.color : "var(--line)", minHeight: 64, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-        {ply === 0 ? (
-          <div style={{ fontWeight: 700 }}>Starting position — step forward to review each move.</div>
-        ) : !cur ? (
-          <div className="muted">Analysing move {moveNo}…</div>
-        ) : (
-          <>
-            <div style={{ fontSize: 16, fontWeight: 800, color: meta!.color }}>
-              {moveNo}{moverWhite ? "." : "…"} {cur.played} · {meta!.label} {meta!.symbol}
-            </div>
-            {cur.cls !== "best" && cur.bestSan && (
-              <div className="muted" style={{ marginTop: 2 }}>Better was {cur.bestSan} (shown on the board).</div>
-            )}
-          </>
-        )}
-      </div>
+      {(() => {
+        // Always render a line-1 + line-2 so the card height never changes
+        // (otherwise the board jumps between 1- and 2-line annotations).
+        let line1 = "Starting position", line2 = "Step forward to review each move.", color: string | undefined;
+        if (ply > 0 && !cur) { line1 = `Analysing move ${moveNo}…`; line2 = " "; }
+        else if (cur) {
+          line1 = `${moveNo}${moverWhite ? "." : "…"} ${cur.played} · ${CLASS_META[cur.cls].label} ${CLASS_META[cur.cls].symbol}`;
+          line2 = cur.cls !== "best" && cur.bestSan ? `Better was ${cur.bestSan} (shown on the board).` : " ";
+          color = CLASS_META[cur.cls].color;
+        }
+        return (
+          <div className="card" style={{ marginBottom: 12, borderColor: meta ? meta.color : "var(--line)" }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color }}>{line1}</div>
+            <div className="muted" style={{ marginTop: 2, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{line2}</div>
+          </div>
+        );
+      })()}
 
       <ChessBoard
         board={chess.board()} orientation={mySide} selected={null} targets={new Set()}
