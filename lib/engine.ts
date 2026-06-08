@@ -149,6 +149,43 @@ export function bestMove(chess: Chess, depth: number, rng: () => number = Math.r
   return bestMoves[Math.floor(rng() * bestMoves.length)];
 }
 
+export interface Analysis {
+  best: EngineMove | null; // best move for the side to move (null if none)
+  cp: number;              // evaluation in centipawns, White's perspective (+ = White better)
+  mate: number | null;     // forced mate in N moves, White's perspective (+White / -Black); null if none
+}
+
+/**
+ * Evaluate a position: the best move for the side to move plus a White-perspective
+ * score. Shared by the in-game coach and post-game review.
+ */
+export function analyse(fen: string, depth = 3): Analysis {
+  const chess = new Chess(fen);
+  const stm = chess.turn();
+  const moves = orderedMoves(chess);
+  if (moves.length === 0) {
+    const cp = chess.isCheckmate() ? (stm === "w" ? -MATE : MATE) : 0;
+    return { best: null, cp, mate: null };
+  }
+  let best = -Infinity, bestMv = moves[0], alpha = -Infinity;
+  for (const m of moves) {
+    chess.move(m);
+    const score = -negamax(chess, depth - 1, -Infinity, -alpha, 1);
+    chess.undo();
+    if (score > best) { best = score; bestMv = m; }
+    if (best > alpha) alpha = best;
+  }
+  // `best` is from the side-to-move's perspective; convert to White's.
+  const cp = stm === "w" ? best : -best;
+  let mate: number | null = null;
+  if (Math.abs(best) > MATE - 1000) {
+    const movesToMate = Math.ceil((MATE - Math.abs(best)) / 2);
+    const fromStm = best > 0 ? movesToMate : -movesToMate;
+    mate = stm === "w" ? fromStm : -fromStm;
+  }
+  return { best: { from: bestMv.from, to: bestMv.to, promotion: bestMv.promotion }, cp, mate };
+}
+
 /** Difficulty: search depth + the chance of playing a random (blundering) move. */
 const LEVELS: Record<number, { depth: number; blunder: number }> = {
   1: { depth: 1, blunder: 0.5 },  // Easy: greedy, blunders often

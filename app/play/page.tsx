@@ -2,9 +2,11 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { Chess, type Color, type Square } from "chess.js";
-import { chooseMove } from "@/lib/engine";
+import { analyse, chooseMove, type Analysis } from "@/lib/engine";
 import { ChessBoard } from "@/components/ChessBoard";
 import { PlayNav } from "@/components/PlayNav";
+
+const BLUNDER_CP = 150; // centipawns lost vs best to flag a blunder
 
 const PLAY_KEY = "swiss_play_v1";
 type Mode = "ai" | "duo"; // duo = two players on this device (pass-and-play)
@@ -30,6 +32,10 @@ function kingSquare(chess: Chess, color: Color): string | null {
   return null;
 }
 const sideName = (c: Color) => (c === "w" ? "White" : "Black");
+function sanOf(fen: string, mv: { from: string; to: string; promotion?: string }): string {
+  const c = new Chess(fen);
+  try { return c.move({ from: mv.from, to: mv.to, promotion: mv.promotion }).san; } catch { return ""; }
+}
 
 export default function PlayPage() {
   const [moves, setMoves] = useState<string[]>([]);
@@ -41,12 +47,18 @@ export default function PlayPage() {
   const [selected, setSelected] = useState<Square | null>(null);
   const [resigned, setResigned] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // Coach (AI mode only): eval bar, best-move hints, blunder alerts.
+  const [coach, setCoach] = useState(false);
+  const [coachEval, setCoachEval] = useState<(Analysis & { fen: string }) | null>(null);
+  const [hintMove, setHintMove] = useState<{ from: string; to: string; fen: string } | null>(null);
+  const [blunder, setBlunder] = useState<{ san: string } | null>(null);
 
   const chess = useMemo(() => fromMoves(moves), [moves]);
   const turn = chess.turn();
   const over = chess.isGameOver() || resigned;
   const aiTurn = mode === "ai" && loaded && !over && turn !== mySide; // engine to move
-  const thinking = aiTurn;
+  const coachOn = coach && mode === "ai";
+  const thinking = aiTurn && !blunder; // a pending blunder alert holds the engine
   const canMove = loaded && !over && (mode === "duo" || turn === mySide);
   const boardOrientation = mode === "duo" && autoFlip ? turn : orientation;
 
@@ -61,6 +73,7 @@ export default function PlayPage() {
           if (s.side === "w" || s.side === "b") { setMySide(s.side); setOrientation(s.side); }
           if (s.level === 1 || s.level === 2 || s.level === 3) setLevel(s.level);
           if (typeof s.autoFlip === "boolean") setAutoFlip(s.autoFlip);
+          if (typeof s.coach === "boolean") setCoach(s.coach);
           if (Array.isArray(s.moves)) setMoves(s.moves.filter((m: unknown) => typeof m === "string"));
         }
       } catch { /* ignore */ }
@@ -72,13 +85,27 @@ export default function PlayPage() {
   // Persist after every change.
   useEffect(() => {
     if (!loaded) return;
-    try { localStorage.setItem(PLAY_KEY, JSON.stringify({ moves, mode, side: mySide, level, autoFlip })); } catch { /* ignore */ }
-  }, [moves, mode, mySide, level, autoFlip, loaded]);
+    try { localStorage.setItem(PLAY_KEY, JSON.stringify({ moves, mode, side: mySide, level, autoFlip, coach })); } catch { /* ignore */ }
+  }, [moves, mode, mySide, level, autoFlip, coach, loaded]);
+
+  // Coach: keep a fresh evaluation of the current position (deferred so it never
+  // blocks input). Drives the eval bar and the hint.
+  useEffect(() => {
+    if (!coachOn || !loaded || over) return;
+    let cancelled = false;
+    const id = setTimeout(() => {
+      if (cancelled) return;
+      const f = chess.fen();
+      const a = analyse(f, 3);
+      if (!cancelled) setCoachEval({ ...a, fen: f });
+    }, 60);
+    return () => { cancelled = true; clearTimeout(id); };
+  }, [coachOn, loaded, over, chess]);
 
   // When it's the engine's turn (AI mode only), think — deferred so the UI can
   // paint first — and append its reply. setState lives in the timeout callback.
   useEffect(() => {
-    if (!aiTurn) return;
+    if (!aiTurn || blunder) return; // a pending blunder alert pauses the engine
     let cancelled = false;
     const id = setTimeout(() => {
       if (cancelled) return;
@@ -90,7 +117,7 @@ export default function PlayPage() {
       if (san) setMoves((ms) => [...ms, san!]);
     }, 140);
     return () => { cancelled = true; clearTimeout(id); };
-  }, [aiTurn, chess, level]);
+  }, [aiTurn, blunder, chess, level]);
 
   const targets = new Set(selected ? chess.moves({ square: selected, verbose: true }).map((m) => m.to) : []);
   const histLast = chess.history({ verbose: true }).at(-1);
@@ -104,6 +131,14 @@ export default function PlayPage() {
     try { san = c.move({ from, to, promotion: "q" }).san; } catch { /* not legal */ }
     if (!san) return false;
     setSelected(null);
+    setHintMove(null);
+    // Coach: flag the human's move if it loses ≥ BLUNDER_CP vs the best move.
+    if (coachOn) {
+      const before = analyse(chess.fen(), 2);
+      const after = analyse(c.fen(), 2);
+      const loss = mySide === "w" ? before.cp - after.cp : after.cp - before.cp;
+      setBlunder(loss >= BLUNDER_CP && before.best ? { san: sanOf(chess.fen(), before.best) } : null);
+    }
     setMoves((ms) => [...ms, san!]);
     return true;
   };
@@ -134,7 +169,7 @@ export default function PlayPage() {
     if (next.mode) setMode(next.mode);
     if (next.side) setMySide(next.side);
     if (next.level) setLevel(next.level);
-    setMoves([]); setResigned(false); setSelected(null);
+    setMoves([]); setResigned(false); setSelected(null); setBlunder(null); setHintMove(null);
     setOrientation(m === "duo" ? "w" : side);
   };
   const undo = () => {
@@ -145,10 +180,15 @@ export default function PlayPage() {
       if (mode === "ai" && n.length > 0 && fromMoves(n).turn() !== mySide) n.pop();
       return n;
     });
-    setResigned(false); setSelected(null);
+    setResigned(false); setSelected(null); setBlunder(null); setHintMove(null);
   };
   const resign = () => { if (!over) setResigned(true); };
   const flip = () => setOrientation((o) => (o === "w" ? "b" : "w"));
+  const showHint = () => {
+    const a = coachEval && coachEval.fen === chess.fen() ? coachEval : analyse(chess.fen(), 3);
+    if (a.best) setHintMove({ from: a.best.from, to: a.best.to, fen: chess.fen() });
+  };
+  const hint = hintMove && hintMove.fen === chess.fen() ? { from: hintMove.from, to: hintMove.to } : null;
 
   const status = (() => {
     if (resigned) return mode === "duo" ? `${sideName(turn)} resigned.` : "You resigned.";
@@ -189,12 +229,39 @@ export default function PlayPage() {
         <div style={{ fontSize: 18, fontWeight: 800, marginTop: 4 }}>{status}</div>
       </div>
 
+      {coachOn && (() => {
+        const a = coachEval && coachEval.fen === chess.fen() ? coachEval : null;
+        const cp = a ? a.cp : 0;
+        const frac = a?.mate != null ? (a.mate > 0 ? 1 : 0) : 1 / (1 + Math.pow(10, -cp / 400));
+        const label = !a ? "…" : a.mate != null ? `M${Math.abs(a.mate)}` : `${cp >= 0 ? "+" : "−"}${Math.abs(cp / 100).toFixed(1)}`;
+        return (
+          <div className="row" style={{ gap: 8, alignItems: "center", marginBottom: 8 }}>
+            <div style={{ position: "relative", height: 14, flex: 1, borderRadius: 7, overflow: "hidden", border: "1px solid var(--line)", background: "#3a3f33" }}>
+              <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${frac * 100}%`, background: "#e9edcc", transition: "width .25s" }} />
+            </div>
+            <span className="num muted" style={{ fontSize: 12, width: 46, textAlign: "right" }}>{label}</span>
+          </div>
+        );
+      })()}
+
+      {blunder && (
+        <div className="card" style={{ marginBottom: 8, borderColor: "var(--loss)" }}>
+          <div style={{ fontWeight: 800 }}>⚠ That looks like a blunder.</div>
+          <div className="muted" style={{ marginTop: 2 }}>A stronger move was {blunder.san}.</div>
+          <div className="row" style={{ gap: 8, marginTop: 8 }}>
+            <button className="btn grow" onClick={undo}>↩ Take it back</button>
+            <button className="btn ghost grow" onClick={() => setBlunder(null)}>Play on</button>
+          </div>
+        </div>
+      )}
+
       <ChessBoard
         board={chess.board()} orientation={boardOrientation} selected={selected} targets={targets}
-        lastMove={lastMove} checkSquare={checkSquare} onSquare={onSquare} onMove={onMove} disabled={!canMove} />
+        lastMove={lastMove} checkSquare={checkSquare} hint={hint} onSquare={onSquare} onMove={onMove} disabled={!canMove} />
 
       <div className="row" style={{ gap: 8, marginTop: 12 }}>
         <button className="btn grow" onClick={undo} disabled={thinking || moves.length === 0}>↩ Undo</button>
+        {coachOn && <button className="btn ghost grow" onClick={showHint} disabled={!canMove}>💡 Hint</button>}
         {!(mode === "duo" && autoFlip) && <button className="btn ghost grow" onClick={flip}>⇅ Flip</button>}
         <button className="btn ghost grow" onClick={resign} disabled={over}>Resign</button>
       </div>
@@ -217,6 +284,10 @@ export default function PlayPage() {
               {segBtn(mySide === "w", "White ⚪", () => newGame({ side: "w" }))}
               {segBtn(mySide === "b", "Black ⚫", () => newGame({ side: "b" }))}
             </div>
+            <label className="row" style={{ gap: 10, marginTop: 8 }}>
+              <input type="checkbox" checked={coach} onChange={(e) => setCoach(e.target.checked)} style={{ width: 22, height: 22 }} />
+              <span>Coach <span className="muted">(eval bar, hints, blunder alerts)</span></span>
+            </label>
           </>
         ) : (
           <label className="row" style={{ gap: 10, marginTop: 6 }}>

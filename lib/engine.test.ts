@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Chess } from "chess.js";
-import { evaluate, bestMove, chooseMove } from "./engine";
+import { evaluate, bestMove, chooseMove, analyse } from "./engine";
 
 describe("evaluate", () => {
   it("is roughly balanced from the start", () => {
@@ -35,6 +35,25 @@ describe("bestMove", () => {
     const c = new Chess(fen);
     bestMove(c, 3);
     expect(c.fen()).toBe(fen);
+  });
+});
+
+describe("analyse", () => {
+  it("reports a forced mate in one for the mating side", () => {
+    const a = analyse("6k1/5ppp/8/8/8/8/8/4R1K1 w - - 0 1", 3);
+    expect(a.mate).toBe(1); // White mates in 1
+    expect(a.cp).toBeGreaterThan(100000);
+    expect(a.best?.to).toBe("e8");
+  });
+
+  it("is near-zero from the start and signed from White's perspective", () => {
+    expect(Math.abs(analyse(new Chess().fen(), 2).cp)).toBeLessThan(80);
+    // White up a rook (Black missing a8 rook) → clearly positive for White.
+    expect(analyse("1nbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQk - 0 1", 2).cp).toBeGreaterThan(300);
+  });
+
+  it("returns no best move at a terminal position", () => {
+    expect(analyse("k7/8/1Q6/8/8/8/8/7K b - - 0 1", 2).best).toBeNull(); // stalemate
   });
 });
 

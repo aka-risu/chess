@@ -21,7 +21,7 @@ const pieceSrc = (cell: { color: Color; type: PieceSymbol }) =>
  * selection state live in the parent.
  */
 export function ChessBoard({
-  board, orientation, selected, targets, lastMove, checkSquare, onSquare, onMove, disabled,
+  board, orientation, selected, targets, lastMove, checkSquare, hint, onSquare, onMove, disabled,
 }: {
   board: Cell[][]; // chess.js board(): 8 rows rank8→rank1, files a→h
   orientation: Color;
@@ -29,6 +29,7 @@ export function ChessBoard({
   targets: Set<string>;
   lastMove: { from: string; to: string } | null;
   checkSquare: string | null;
+  hint?: { from: string; to: string } | null; // coach's suggested move
   onSquare: (sq: Square) => void;
   onMove: (from: Square, to: Square) => void;
   disabled?: boolean;
@@ -108,10 +109,12 @@ export function ChessBoard({
             const isCheck = checkSquare === square;
             const isOver = drag?.over === square;
             const beingDragged = drag?.from === square;
+            const isHint = hint && (hint.from === square || hint.to === square);
             const base = light ? "#e9edcc" : "#7a945a"; // warm light / sage dark
             let bg = base;
             if (isSel) bg = "var(--accent)";
             else if (isLast) bg = light ? "#dbe27a" : "#9bab5a";
+            if (isHint) bg = light ? "#a9c7e8" : "#6f93c0"; // coach hint (blue)
             if (isCheck) bg = "#d65a5a";
             return (
               <button
