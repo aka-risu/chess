@@ -26,7 +26,9 @@ export function Countdown({ target }: { target: string | null }) {
   if (now === null) return <div className="big">&nbsp;</div>;
 
   let diff = Math.floor((ts - now) / 1000);
-  if (diff <= 0) return <div className="big">Starting now ♟</div>;
+  // The announced time has come and gone without the tournament starting — the
+  // date is stale, so treat the next event as not yet scheduled.
+  if (diff <= 0) return <div className="big">Next tournament not announced yet</div>;
 
   const days = Math.floor(diff / 86400); diff -= days * 86400;
   const hours = Math.floor(diff / 3600); diff -= hours * 3600;

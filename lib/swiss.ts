@@ -102,7 +102,7 @@ export function standings(state: TournamentState): StandingRow[] {
   const d = deriveData(state);
   const playerMap = new Map(state.players.map((p) => [p.id, p.name]));
   return state.players
-    .map((p) => ({ ...d[p.id], name: playerMap.get(p.id) ?? p.id }))
+    .map((p) => ({ ...d[p.id], name: playerMap.get(p.id) ?? p.id, out: p.out }))
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
       if (b.buch !== a.buch) return b.buch - a.buch;
@@ -196,13 +196,17 @@ export function generateRound(state: TournamentState, rng: Rng = Math.random): R
 
   const seedOf = (p: Player) => p.level ?? 0; // higher = stronger
 
+  // Withdrawn players keep their past results (and Buchholz contribution) but are
+  // never paired again.
+  const active = state.players.filter((p) => !p.out);
+
   let pool: Player[];
   if (roundIndex === 0) {
     // Round 1: seed by level (desc), random within equal level.
-    pool = shuffle(state.players.slice(), rng).sort((a, b) => seedOf(b) - seedOf(a));
+    pool = shuffle(active.slice(), rng).sort((a, b) => seedOf(b) - seedOf(a));
   } else {
     // Later rounds: by score, then level (rating order within score group), then Buchholz.
-    pool = shuffle(state.players.slice(), rng).sort((a, b) => {
+    pool = shuffle(active.slice(), rng).sort((a, b) => {
       const A = d[a.id], B = d[b.id];
       return B.score - A.score || seedOf(b) - seedOf(a) || B.buch - A.buch;
     });

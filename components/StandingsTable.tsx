@@ -21,7 +21,10 @@ export function StandingsTable({ rows, playedRounds, champion }: { rows: Standin
           {rows.map((p, i) => (
             <tr key={p.id} style={{ borderTop: "1px solid var(--line)", background: champion && i === 0 ? "rgba(198,247,63,.10)" : undefined }}>
               <td className="num" style={{ textAlign: "right", padding: 8, color: "var(--accent)" }}>{i + 1}</td>
-              <td style={{ padding: 8, fontWeight: champion && i === 0 ? 800 : 500 }}>{p.name}{champion && i === 0 ? " ♛" : ""}</td>
+              <td style={{ padding: 8, fontWeight: champion && i === 0 ? 800 : 500, color: p.out ? "var(--ink-dim)" : undefined }}>
+                {p.name}{champion && i === 0 ? " ♛" : ""}
+                {p.out && <span className="pill" style={{ marginLeft: 6, padding: "1px 6px", fontSize: 9 }}>WD</span>}
+              </td>
               {Array.from({ length: playedRounds }, (_, r) => (
                 <td key={r} className="num" style={{ textAlign: "center", padding: 6, color: "var(--ink-soft)" }}>{mark(p.results[r])}</td>
               ))}
