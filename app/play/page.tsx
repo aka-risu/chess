@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Chess, type Color, type Square } from "chess.js";
 import { chooseMove } from "@/lib/engine";
 import { ChessBoard } from "@/components/ChessBoard";
+import { PlayNav } from "@/components/PlayNav";
 
 const PLAY_KEY = "swiss_play_v1";
 type Mode = "ai" | "duo"; // duo = two players on this device (pass-and-play)
@@ -181,6 +182,7 @@ export default function PlayPage() {
           <div className="kicker" style={{ marginTop: 4 }}>{mode === "duo" ? "Two players · pass and play" : "Play vs the computer"}</div>
         </div>
       </div>
+      <PlayNav />
 
       <div className="card" style={{ marginBottom: 12, borderColor: "var(--accent)" }}>
         <span className="kicker">Status</span>
