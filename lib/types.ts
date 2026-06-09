@@ -5,6 +5,7 @@ export interface Player {
   id: Id;
   name: string;
   level?: number; // self-rated tier (see LEVELS); higher = stronger. Used for Swiss seeding.
+  out?: boolean; // withdrawn mid-tournament: kept for past results/Buchholz, excluded from future pairings.
 }
 
 /** Self-rated skill tiers. `value` is the seed weight (higher = stronger). */
@@ -107,6 +108,7 @@ export interface Derived {
 
 export interface StandingRow extends Derived {
   name: string;
+  out?: boolean; // withdrawn — shown frozen with a "WD" tag in standings.
 }
 
 export function emptyState(): TournamentState {

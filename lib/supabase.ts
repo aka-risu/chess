@@ -132,6 +132,65 @@ export async function saveGameMoves(roundIdx: number, gameIdx: number, moves: st
   await saveTournament({ state });
 }
 
+/**
+ * Let a player report the result of their own board, add-only, with a fresh
+ * read-modify-write so it can't clobber a concurrent entry. Guards: the round
+ * must be the latest one, the game must exist, not be a bye, and not already
+ * have a result (the "report once" rule). Round progression / finishing stays
+ * admin-only, so this never changes status or archives.
+ */
+export async function reportResult(roundIdx: number, gameIdx: number, res: "w" | "d" | "b"): Promise<void> {
+  const t = await getTournament();
+  if (!t) return;
+  const state: TournamentState = structuredClone(t.state);
+  if (roundIdx !== state.schedule.length - 1) return; // not the live round
+  const game = state.schedule[roundIdx]?.[gameIdx];
+  if (!game || game.b === null || game.res !== null) return;
+  game.res = res;
+  await saveTournament({ state });
+}
+
+/**
+ * Withdraw a player mid-tournament. Their past games are kept (so opponents'
+ * Buchholz is unaffected) but they're never paired again. Any unfinished game
+ * they have in the latest round is forfeited to the opponent (full point). Does
+ * not change status — the organiser still advances/finishes the round.
+ */
+export async function withdrawPlayer(playerId: string): Promise<void> {
+  const t = await getTournament();
+  if (!t) return;
+  const state: TournamentState = structuredClone(t.state);
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player) return;
+  player.out = true;
+  // Forfeit any unfinished current-round game (a real pairing, not a bye).
+  const latest = state.schedule[state.schedule.length - 1];
+  if (latest) {
+    for (const g of latest) {
+      if (g.res !== null || g.b === null) continue;
+      if (g.w === playerId) g.res = "b"; // opponent (black) wins
+      else if (g.b === playerId) g.res = "w"; // opponent (white) wins
+    }
+  }
+  await saveTournament({ state });
+}
+
+/**
+ * Add a latecomer mid-tournament. They join at 0 points and are paired from the
+ * next round the organiser generates. Returns the new player's id.
+ */
+export async function addLatePlayer(name: string, level?: number): Promise<string | null> {
+  const t = await getTournament();
+  if (!t) return null;
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+  const state: TournamentState = structuredClone(t.state);
+  const id = crypto.randomUUID();
+  state.players.push({ id, name: trimmed, level });
+  await saveTournament({ state });
+  return id;
+}
+
 export async function listSignups(): Promise<Signup[]> {
   if (isTestMode()) return (await ensureTestSeed()).signups;
   const { data, error } = await supabase().from("signups").select("*").order("created_at");

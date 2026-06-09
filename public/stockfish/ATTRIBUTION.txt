@@ -1,0 +1,8 @@
+Stockfish chess engine (classical, v10) compiled to WebAssembly.
+
+Stockfish is free software licensed under the GNU General Public License v3.
+Source: https://github.com/official-stockfish/Stockfish
+WASM/JS build (stockfish.js): https://github.com/nmrugg/stockfish.js
+
+Per the GPL, the corresponding source for these compiled files is available at
+the URLs above.

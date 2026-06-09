@@ -2,7 +2,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import {
-  addSignup, cachedSignups, cachedTournament, getTournament, listSignups, removeSignup, saveGameMoves, saveTournament, subscribeSignups, subscribeTournament, upsertHistory,
+  addLatePlayer, addSignup, cachedSignups, cachedTournament, getTournament, listSignups, removeSignup, saveGameMoves, saveTournament, subscribeSignups, subscribeTournament, upsertHistory, withdrawPlayer,
 } from "@/lib/supabase";
 import {
   allDone, clampRounds, deriveData, generateRound, recommendedRounds, roundComplete, standings,
@@ -38,6 +38,7 @@ export default function AdminPage() {
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [view, setView] = useState(0);
   const [manualName, setManualName] = useState("");
+  const [lateName, setLateName] = useState("");
 
   const refresh = async () => {
     const tt = await getTournament();
@@ -234,6 +235,29 @@ export default function AdminPage() {
     catch (err) { alert(err instanceof Error ? err.message : String(err)); }
   };
 
+  const liveTournament = t.status !== "finished" && !done;
+  const doWithdraw = (id: string, name: string) => {
+    if (!confirm(`Withdraw ${name}? Their unfinished game this round is forfeited to the opponent, and they won't be paired again.`)) return;
+    withdrawPlayer(id).catch((err: unknown) => alert(err instanceof Error ? err.message : String(err)));
+  };
+  const doLateJoin = () => {
+    const nm = lateName.trim();
+    if (!nm) return;
+    addLatePlayer(nm).catch((err: unknown) => alert(err instanceof Error ? err.message : String(err)));
+    setLateName("");
+  };
+
+  // Live readiness of the latest round (what the organiser is chasing), even
+  // while viewing an earlier round.
+  const latestRound = t.state.schedule[cur] ?? [];
+  let rb = 0, reported = 0;
+  const outstanding: { board: number; w: string; b: string }[] = [];
+  for (const g of latestRound) {
+    if (g.b !== null) rb++;
+    if (g.res !== null) { reported++; continue; }
+    outstanding.push({ board: rb, w: nameOf(g.w), b: nameOf(g.b!) });
+  }
+
   let board = 0;
   const rows = standings(t.state);
   return (
@@ -250,6 +274,24 @@ export default function AdminPage() {
           <span className="kicker label">Tournament finished</span>
           <div className="win">🏆 {rows[0].name}</div>
           <div className="muted" style={{ marginTop: 4 }}>champion</div>
+        </div>
+      )}
+      {liveTournament && (
+        <div className="card" style={{ marginBottom: 14, borderColor: outstanding.length === 0 ? "var(--accent)" : "var(--accent-2)" }}>
+          <span className="kicker">Round {cur + 1} · {reported}/{latestRound.length} reported</span>
+          {outstanding.length === 0 ? (
+            <div style={{ fontWeight: 700, marginTop: 4 }}>All boards in ✓ — ready to pair the next round.</div>
+          ) : (
+            <div className="stack" style={{ gap: 4, marginTop: 6 }}>
+              <span className="muted">Waiting on:</span>
+              {outstanding.map((o) => (
+                <div key={o.board} className="row" style={{ gap: 8 }}>
+                  <span className="num" style={{ color: "var(--accent-2)" }}>Board {o.board}</span>
+                  <span>{o.w} – {o.b}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
       <h2 className="section">Round {view + 1} <span className="muted">of {t.rounds}</span></h2>
@@ -279,6 +321,29 @@ export default function AdminPage() {
         )}
         <button className="btn block danger" onClick={reset}>New tournament</button>
       </div>
+
+      {liveTournament && (
+        <div className="card stack" style={{ marginTop: 16 }}>
+          <label className="kicker">Players</label>
+          {t.state.players.map((p) => (
+            <div key={p.id} className="row" style={{ justifyContent: "space-between" }}>
+              <span className="row" style={{ gap: 8, color: p.out ? "var(--ink-dim)" : undefined }}>
+                {p.name}
+                {p.level && <span className="pill" style={{ padding: "2px 8px", fontSize: 10 }}>{levelShort(p.level)}</span>}
+                {p.out && <span className="pill" style={{ padding: "1px 6px", fontSize: 9 }}>WD</span>}
+              </span>
+              {!p.out && <button className="btn danger" onClick={() => doWithdraw(p.id, p.name)}>Withdraw</button>}
+            </div>
+          ))}
+          <label className="kicker" style={{ marginTop: 8 }}>Add a latecomer <span className="muted">(joins at 0 pts, paired next round)</span></label>
+          <div className="row">
+            <input className="grow" type="text" placeholder="Player name" value={lateName} maxLength={40}
+              onChange={(e) => setLateName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") doLateJoin(); }} />
+            <button className="btn" disabled={!lateName.trim()} onClick={doLateJoin}>Add</button>
+          </div>
+        </div>
+      )}
 
       <div className="card stack" style={{ marginTop: 16 }}>
         <label className="kicker">Display settings</label>

@@ -148,3 +148,40 @@ describe("generateRound level seeding", () => {
     }
   });
 });
+
+describe("withdrawn players", () => {
+  it("are never paired again but their past results still count", () => {
+    // a beat b in round 1; b then withdraws. Round 2 must not include b.
+    const players: Player[] = [
+      { id: "a", name: "A" }, { id: "b", name: "B", out: true },
+      { id: "c", name: "C" }, { id: "d", name: "D" },
+    ];
+    const state: TournamentState = {
+      players,
+      schedule: [[
+        { w: "a", b: "b", res: "w" }, // a beat the now-withdrawn b
+        { w: "c", b: "d", res: "d" },
+      ]],
+      viewRound: 1,
+    };
+    const round2 = generateRound(state);
+    const paired = round2.flatMap((g) => [g.w, g.b]).filter(Boolean);
+    expect(paired).not.toContain("b");
+
+    // b's win/loss record still feeds a's Buchholz (b kept in deriveData).
+    const d = deriveData(state);
+    expect(d.b.score).toBe(0);
+    expect(d.a.buch).toBe(d.b.score); // a's only opponent is b
+  });
+
+  it("standings carry the `out` flag", () => {
+    const state: TournamentState = {
+      players: [{ id: "a", name: "A", out: true }, { id: "b", name: "B" }],
+      schedule: [[{ w: "a", b: "b", res: "b" }]],
+      viewRound: 1,
+    };
+    const rows = standings(state);
+    expect(rows.find((r) => r.id === "a")?.out).toBe(true);
+    expect(rows.find((r) => r.id === "b")?.out).toBeUndefined();
+  });
+});

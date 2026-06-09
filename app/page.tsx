@@ -8,10 +8,12 @@ import { DEFAULT_LEVEL, LEVELS, levelShort, type Signup, type Tournament } from 
 import { Countdown, formatEventDate } from "@/components/Countdown";
 import { MyMatch } from "@/components/MyMatch";
 import { SPONSOR } from "@/lib/sponsor";
+import { ME_KEY, MINE_KEY } from "@/lib/identity";
 
-const MINE_KEY = "swiss_my_signups";
 const getMine = (): string[] => { try { return JSON.parse(localStorage.getItem(MINE_KEY) || "[]"); } catch { return []; } };
 const setMine = (ids: string[]) => localStorage.setItem(MINE_KEY, JSON.stringify(ids));
+const getMe = (): string | null => { try { return localStorage.getItem(ME_KEY); } catch { return null; } };
+const setMe = (id: string | null) => { if (id) localStorage.setItem(ME_KEY, id); else localStorage.removeItem(ME_KEY); };
 
 const DEFAULT_LOCATION = "The office, Koh Tao";
 
@@ -21,6 +23,8 @@ export default function SignupPage() {
   const [signups, setSignups] = useState<Signup[]>(cachedSignups() ?? []);
   const [t, setT] = useState<Tournament | null>(cachedTournament());
   const [mine, setMineState] = useState<string[]>([]);
+  const [meState, setMeStateLocal] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(cachedTournament() === null);
 
@@ -30,7 +34,7 @@ export default function SignupPage() {
     setLoading(false);
   };
   useEffect(() => {
-    const raf = requestAnimationFrame(() => setMineState(getMine()));
+    const raf = requestAnimationFrame(() => { setMineState(getMine()); setMeStateLocal(getMe()); setNowMs(Date.now()); });
     refresh();
     const a = subscribeSignups(refresh);
     const b = subscribeTournament(refresh);
@@ -45,13 +49,32 @@ export default function SignupPage() {
     setBusy(false);
     if (row) {
       const next = [...getMine(), row.id]; setMine(next); setMineState(next);
+      // First player registered on this device defaults to "me" (the common
+      // case: you sign yourself up first, friends after). See lib/identity.ts.
+      if (!getMe()) { setMe(row.id); setMeStateLocal(row.id); }
       setName("");
     }
   };
   const withdraw = async (id: string) => {
     await removeSignup(id);
     const next = getMine().filter((x) => x !== id); setMine(next); setMineState(next);
+    if (getMe() === id) { setMe(null); setMeStateLocal(null); }
   };
+  const chooseMe = (id: string) => { setMe(id); setMeStateLocal(id); };
+  // Right-hand controls for a player this device registered. The "This is me"
+  // toggle only appears when several were registered here — otherwise the single
+  // one is implicitly you (see lib/identity.ts resolveMe).
+  const ownerControls = (id: string) => (
+    <span className="row" style={{ gap: 6 }}>
+      {mine.length > 1 && (
+        <button className="pill" onClick={() => chooseMe(id)}
+          style={meState === id ? { background: "var(--accent)", color: "#0b0d10" } : undefined}>
+          {meState === id ? "✓ This is me" : "This is me"}
+        </button>
+      )}
+      <button className="btn danger" onClick={() => withdraw(id)}>Remove</button>
+    </span>
+  );
 
   const headerShell = (
     <div className="mast">
@@ -104,7 +127,7 @@ export default function SignupPage() {
       {status === "active"
         ? <div className="big">In progress ♟</div>
         : <Countdown target={t?.event_at ?? null} />}
-      {t?.event_at && status !== "active" && (
+      {t?.event_at && status !== "active" && !(nowMs !== null && new Date(t.event_at).getTime() <= nowMs) && (
         <div className="muted" style={{ marginTop: 8 }}>{formatEventDate(t.event_at)}</div>
       )}
     </div>
@@ -159,7 +182,7 @@ export default function SignupPage() {
                 <span className="num" style={{ color: "var(--accent)" }}>{i + 1}</span>{sgn.name}
                 {sgn.level && <span className="pill" style={{ padding: "2px 8px", fontSize: 10 }}>{levelShort(sgn.level)}</span>}
               </span>
-              {mine.includes(sgn.id) && <button className="btn danger" onClick={() => withdraw(sgn.id)}>Remove</button>}
+              {mine.includes(sgn.id) && ownerControls(sgn.id)}
             </div>
           ))}
           {signups.length === 0 && <div className="empty">No one yet — be the first.</div>}
@@ -174,7 +197,7 @@ export default function SignupPage() {
                   <span className="row" style={{ gap: 8 }}>✓ {sgn.name}
                     {sgn.level && <span className="pill" style={{ padding: "2px 8px", fontSize: 10 }}>{levelShort(sgn.level)}</span>}
                   </span>
-                  <button className="btn danger" onClick={() => withdraw(sgn.id)}>Remove</button>
+                  {ownerControls(sgn.id)}
                 </div>
               ))}
             </div>
