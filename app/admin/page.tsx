@@ -7,7 +7,7 @@ import {
 import {
   allDone, clampRounds, deriveData, generateRound, recommendedRounds, roundComplete, standings,
 } from "@/lib/swiss";
-import { levelShort, type Signup, type Tournament, type TournamentState } from "@/lib/types";
+import { DEFAULT_LEVEL, LEVELS, levelShort, type Signup, type Tournament, type TournamentState } from "@/lib/types";
 import { csvFilename, downloadText, tournamentCsv } from "@/lib/export";
 import { StatusPill } from "@/components/StatusPill";
 import { PairingBoard } from "@/components/PairingBoard";
@@ -30,6 +30,23 @@ const fromLocalInput = (v: string): string | null => {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 };
 
+// Skill-tier picker shared by the manual-add and latecomer forms.
+function LevelPicker({ level, onPick }: { level: number; onPick: (v: number) => void }) {
+  return (
+    <div className="row" style={{ gap: 6 }}>
+      {LEVELS.map((l) => (
+        <button key={l.value} type="button" onClick={() => onPick(l.value)} className="num"
+          style={{
+            flex: 1, minHeight: 44, borderRadius: 8, border: "1px solid var(--line)",
+            background: level === l.value ? "var(--accent)" : "var(--surface-2)",
+            color: level === l.value ? "#0b0d10" : "var(--ink-soft)", fontWeight: level === l.value ? 800 : 600,
+            fontSize: 12, textTransform: "uppercase", letterSpacing: ".03em",
+          }}>{l.label}</button>
+      ))}
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const [unlocked, setUnlocked] = useState(false);
   const [pass, setPass] = useState("");
@@ -38,7 +55,9 @@ export default function AdminPage() {
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [view, setView] = useState(0);
   const [manualName, setManualName] = useState("");
+  const [manualLevel, setManualLevel] = useState(DEFAULT_LEVEL);
   const [lateName, setLateName] = useState("");
+  const [lateLevel, setLateLevel] = useState(DEFAULT_LEVEL);
 
   const refresh = async () => {
     const tt = await getTournament();
@@ -124,14 +143,15 @@ export default function AdminPage() {
 
         <div className="card stack">
           <label className="kicker">Add a player manually</label>
+          <LevelPicker level={manualLevel} onPick={setManualLevel} />
           <div className="row">
             <input className="grow" type="text" placeholder="Player name" value={manualName} maxLength={40}
               onChange={(e) => setManualName(e.target.value)}
               onKeyDown={async (e) => {
-                if (e.key === "Enter" && manualName.trim()) { await addSignup(manualName.trim()); setManualName(""); }
+                if (e.key === "Enter" && manualName.trim()) { await addSignup(manualName.trim(), manualLevel); setManualName(""); setManualLevel(DEFAULT_LEVEL); }
               }} />
             <button className="btn" disabled={!manualName.trim()}
-              onClick={async () => { await addSignup(manualName.trim()); setManualName(""); }}>Add</button>
+              onClick={async () => { await addSignup(manualName.trim(), manualLevel); setManualName(""); setManualLevel(DEFAULT_LEVEL); }}>Add</button>
           </div>
         </div>
 
@@ -243,8 +263,9 @@ export default function AdminPage() {
   const doLateJoin = () => {
     const nm = lateName.trim();
     if (!nm) return;
-    addLatePlayer(nm).catch((err: unknown) => alert(err instanceof Error ? err.message : String(err)));
+    addLatePlayer(nm, lateLevel).catch((err: unknown) => alert(err instanceof Error ? err.message : String(err)));
     setLateName("");
+    setLateLevel(DEFAULT_LEVEL);
   };
 
   // Live readiness of the latest round (what the organiser is chasing), even
@@ -336,6 +357,7 @@ export default function AdminPage() {
             </div>
           ))}
           <label className="kicker" style={{ marginTop: 8 }}>Add a latecomer <span className="muted">(joins at 0 pts, paired next round)</span></label>
+          <LevelPicker level={lateLevel} onPick={setLateLevel} />
           <div className="row">
             <input className="grow" type="text" placeholder="Player name" value={lateName} maxLength={40}
               onChange={(e) => setLateName(e.target.value)}
