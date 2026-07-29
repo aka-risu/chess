@@ -57,7 +57,7 @@ export interface Tournament {
   event_at: string | null; // ISO timestamp of the next event, or null if unscheduled
   signups_public: boolean; // whether the full sign-up name list is public
   show_sponsor: boolean; // show Antara Freediving credit in the footer
-  show_venue: boolean; // show host/venue credit in the footer
+  venues: string[]; // ids from SPONSOR.venues to credit as hosts ([] = no venue credit)
   updated_at: string;
 }
 
@@ -85,6 +85,7 @@ export interface HistoryEntry {
   finished_at: string;
   rounds: number;
   standings: PodiumRow[];
+  venues?: string[] | null; // host venue ids at the time it was played (older entries may lack it)
   state?: TournamentState | null; // full engine state for the detailed standings table (older entries may lack it)
   visible: boolean;
 }

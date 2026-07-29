@@ -9,6 +9,7 @@ import { fenAfter, sanOf } from "@/lib/moveutil";
 import { ChessBoard } from "@/components/ChessBoard";
 import { PlayNav } from "@/components/PlayNav";
 import { GameReview } from "@/components/GameReview";
+import { OPENINGS, canonicalLine } from "@/lib/openings";
 
 const BLUNDER_CP = 150; // centipawns lost vs best to flag a blunder
 
@@ -65,9 +66,20 @@ export default function PlayPage() {
   const boardOrientation = mode === "duo" && autoFlip ? turn : orientation;
 
   // Restore the saved game once, after mount (raf keeps it off the render path).
+  // Arriving via /play?from=<openingId> seeds that opening's mainline instead,
+  // so you drop straight into the resulting middlegame against the engine.
   useEffect(() => {
     warmEngine(); // start Stockfish loading early
     const raf = requestAnimationFrame(() => {
+      const fromId = new URLSearchParams(window.location.search).get("from");
+      const opening = fromId ? OPENINGS.find((o) => o.id === fromId) : undefined;
+      if (opening) {
+        setMode("ai");
+        setMySide(opening.side); setOrientation(opening.side);
+        setMoves(canonicalLine(opening.moves));
+        setLoaded(true);
+        return; // skip the localStorage restore so the seed takes effect
+      }
       try {
         const raw = localStorage.getItem(PLAY_KEY);
         if (raw) {

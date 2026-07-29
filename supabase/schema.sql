@@ -11,7 +11,7 @@ create table if not exists tournament (
   event_at    timestamptz,
   signups_public boolean not null default false,
   show_sponsor   boolean not null default false,
-  show_venue     boolean not null default false,
+  venues      text[] not null default '{}',
   updated_at  timestamptz not null default now()
 );
 
@@ -22,7 +22,18 @@ alter table tournament add column if not exists event_at timestamptz;
 alter table tournament add column if not exists signups_public boolean not null default false;
 -- Footer credit toggles (off by default — organizer opts in):
 alter table tournament add column if not exists show_sponsor boolean not null default false;
-alter table tournament add column if not exists show_venue boolean not null default false;
+-- Host venues to credit: ids from SPONSOR.venues in lib/sponsor.ts, empty = none.
+-- Supersedes the old show_venue boolean; the one-off backfill below carries a
+-- previously-on credit over to The Office (the only venue back then). The stale
+-- show_venue column is left in place — nothing reads it, drop it when convenient.
+alter table tournament add column if not exists venues text[] not null default '{}';
+do $$ begin
+  if exists (select 1 from information_schema.columns
+             where table_name = 'tournament' and column_name = 'show_venue') then
+    execute $q$ update tournament set venues = '{office}'
+                where show_venue and cardinality(venues) = 0 $q$;
+  end if;
+end $$;
 
 -- Archived finished tournaments (history). One row per finished tournament,
 -- keyed by the per-tournament uid so post-finish edits update the same row.
@@ -34,11 +45,13 @@ create table if not exists tournament_history (
   finished_at timestamptz not null default now(),
   rounds      int not null default 0,
   standings   jsonb not null default '[]'::jsonb, -- [{name,score,buch,sb}], sorted; podium = first 3
+  venues      text[] not null default '{}', -- host venue ids at the time it was played
   state       jsonb, -- full engine state (players + schedule) for the detailed standings table
   visible     boolean not null default true
 );
 -- Migration for existing history tables:
 alter table tournament_history add column if not exists state jsonb;
+alter table tournament_history add column if not exists venues text[] not null default '{}';
 
 create table if not exists signups (
   id          uuid primary key default gen_random_uuid(),

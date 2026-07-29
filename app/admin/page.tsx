@@ -13,6 +13,7 @@ import { StatusPill } from "@/components/StatusPill";
 import { PairingBoard } from "@/components/PairingBoard";
 import { RoundNav } from "@/components/RoundNav";
 import { SignupQR } from "@/components/SignupQR";
+import { pickableVenues } from "@/lib/sponsor";
 
 const PASS = process.env.NEXT_PUBLIC_ORGANIZER_PASSCODE;
 const UNLOCK_KEY = "swiss_admin_unlocked";
@@ -43,6 +44,32 @@ function LevelPicker({ level, onPick }: { level: number; onPick: (v: number) => 
             fontSize: 12, textTransform: "uppercase", letterSpacing: ".03em",
           }}>{l.label}</button>
       ))}
+    </div>
+  );
+}
+
+// Host-venue picker: tick any combination of the venues in lib/sponsor.ts, or
+// none at all to drop the "Hosted at" credit entirely.
+// `picked` tolerates null/undefined: a tournament row written before the venues
+// column existed has no value for it.
+function VenuePicker({ picked, onToggle }: { picked?: string[] | null; onToggle: (ids: string[]) => void }) {
+  const venues = pickableVenues();
+  if (!venues.length) return null;
+  const ids = picked ?? [];
+  return (
+    <div className="stack" style={{ gap: 8 }}>
+      <label className="kicker">Host venues <span className="muted">(footer logo &amp; link)</span></label>
+      {venues.map((v) => {
+        const on = ids.includes(v.id);
+        return (
+          <label key={v.id} className="row" style={{ gap: 10 }}>
+            <input type="checkbox" checked={on} style={{ width: 22, height: 22 }}
+              onChange={() => onToggle(on ? ids.filter((id) => id !== v.id) : [...ids, v.id])} />
+            <span>{v.name}</span>
+          </label>
+        );
+      })}
+      {!ids.length && <span className="muted">No venue credited</span>}
     </div>
   );
 }
@@ -179,12 +206,7 @@ export default function AdminPage() {
               style={{ width: 22, height: 22 }} />
             <span>Show Antara Freediving info <span className="muted">(footer & credits)</span></span>
           </label>
-          <label className="row" style={{ gap: 10 }}>
-            <input type="checkbox" checked={t.show_venue}
-              onChange={(e) => save({ show_venue: e.target.checked })}
-              style={{ width: 22, height: 22 }} />
-            <span>Show host venue info <span className="muted">(footer logo & link)</span></span>
-          </label>
+          <VenuePicker picked={t.venues} onToggle={(venues) => save({ venues })} />
         </div>
         <button className="btn block amber" style={{ marginTop: 16 }} disabled={n < 7 || n > 16} onClick={start}>
           Start tournament →
@@ -206,7 +228,7 @@ export default function AdminPage() {
     const podium = standings(state).map((r) => ({ name: r.name, score: r.score, buch: r.buch, sb: r.sb }));
     await upsertHistory({
       id: state.uid, title: t.title, location: t.location, event_at: t.event_at,
-      rounds: state.schedule.length, standings: podium, state,
+      rounds: state.schedule.length, standings: podium, venues: t.venues, state,
     });
   };
 
@@ -375,12 +397,7 @@ export default function AdminPage() {
             style={{ width: 22, height: 22 }} />
           <span>Show Antara Freediving info <span className="muted">(footer & credits)</span></span>
         </label>
-        <label className="row" style={{ gap: 10 }}>
-          <input type="checkbox" checked={t.show_venue}
-            onChange={(e) => save({ show_venue: e.target.checked })}
-            style={{ width: 22, height: 22 }} />
-          <span>Show host venue info <span className="muted">(footer logo & link)</span></span>
-        </label>
+        <VenuePicker picked={t.venues} onToggle={(venues) => save({ venues })} />
       </div>
     </>
   );

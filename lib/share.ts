@@ -7,7 +7,7 @@
 // fall back to drawing a simple card from scratch.
 // Browser-only: every function is a safe no-op outside the DOM.
 import type { HistoryEntry } from "./types";
-import { SPONSOR } from "./sponsor";
+import { SPONSOR, selectedVenues } from "./sponsor";
 
 export const TEMPLATE_SRC = "/podium-template.png";
 
@@ -171,7 +171,8 @@ function podiumText(entry: HistoryEntry): string {
   const medals = entry.standings.slice(0, 3)
     .map((p, i) => `${MEDALS[i]} ${p.name} (${fmtNum(p.score)})`)
     .join("\n");
-  const org = `Organized by ${SPONSOR.name}${SPONSOR.venue.name ? ` · Hosted at ${SPONSOR.venue.name}` : ""}`;
+  const hosts = selectedVenues(entry.venues).map((v) => v.name).join(" & ");
+  const org = `Organized by ${SPONSOR.name}${hosts ? ` · Hosted at ${hosts}` : ""}`;
   const lines = [`🏆 ${entry.title}`, medals, "", org, SPONSOR.siteLabel];
   if (SPONSOR.discountCode) lines.push(`${SPONSOR.discountText} — code ${SPONSOR.discountCode}`);
   return lines.join("\n");

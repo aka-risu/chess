@@ -7,7 +7,7 @@ function makeTournament(): Tournament {
   return {
     id: "current", title: "Friday Blitz", rounds: 1, status: "finished",
     location: "The Office, Koh Tao", event_at: "2026-06-12T18:00:00.000Z",
-    signups_public: false, show_sponsor: false, show_venue: false, updated_at: "",
+    signups_public: false, show_sponsor: false, venues: [], updated_at: "",
     state: {
       viewRound: 1,
       players: [{ id: "a", name: "Alice" }, { id: "b", name: "Bob" }, { id: "c", name: "Carol" }],

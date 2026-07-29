@@ -62,7 +62,7 @@ function fakeChannel(kind: keyof typeof _testListeners, onChange: () => void): R
 function blankTournament(): Tournament {
   return {
     id: TID, title: "Test Tournament", rounds: 4, status: "setup", state: emptyState(),
-    location: null, event_at: null, signups_public: false, show_sponsor: false, show_venue: false,
+    location: null, event_at: null, signups_public: false, show_sponsor: false, venues: [],
     updated_at: new Date().toISOString(),
   };
 }
@@ -77,7 +77,7 @@ async function ensureTestSeed(): Promise<TestData> {
       c.from("signups").select("*").order("created_at"),
       c.from("tournament_history").select("*").order("finished_at", { ascending: false }),
     ]);
-    tournament = (tr.data as Tournament) ?? null;
+    tournament = tr.data ? rowToTournament(tr.data) : null;
     signups = (sr.data ?? []) as Signup[];
     history = (hr.data ?? []) as HistoryEntry[];
   } catch { /* offline / no DB → blank sandbox */ }
@@ -89,16 +89,26 @@ async function ensureTestSeed(): Promise<TestData> {
   return _test;
 }
 
+/**
+ * Coerce a raw tournament row into a `Tournament`. schema.sql is applied by hand,
+ * so a live row can predate a column the app already reads — fill those in here
+ * rather than making every consumer defensive.
+ */
+export function rowToTournament(row: unknown): Tournament {
+  const t = row as Tournament;
+  return { ...t, venues: t.venues ?? [] };
+}
+
 export async function getTournament(): Promise<Tournament | null> {
   if (isTestMode()) return (await ensureTestSeed()).tournament;
   const { data, error } = await supabase().from("tournament").select("*").eq("id", TID).single();
   if (error) { console.error("getTournament", error); return null; }
-  _cacheT = data as Tournament;
+  _cacheT = rowToTournament(data);
   return _cacheT;
 }
 
 export async function saveTournament(
-  patch: Partial<Pick<Tournament, "title" | "rounds" | "status" | "state" | "location" | "event_at" | "signups_public" | "show_sponsor" | "show_venue">>,
+  patch: Partial<Pick<Tournament, "title" | "rounds" | "status" | "state" | "location" | "event_at" | "signups_public" | "show_sponsor" | "venues">>,
 ): Promise<void> {
   if (isTestMode()) {
     const d = await ensureTestSeed();
@@ -239,7 +249,7 @@ export function subscribeSignups(onChange: () => void): RealtimeChannel {
 
 /** Insert or update an archived tournament (keyed by id). Leaves `visible` untouched on update. */
 export async function upsertHistory(
-  e: Pick<HistoryEntry, "id" | "title" | "location" | "event_at" | "rounds" | "standings" | "state">,
+  e: Pick<HistoryEntry, "id" | "title" | "location" | "event_at" | "rounds" | "standings" | "venues" | "state">,
 ): Promise<void> {
   if (isTestMode()) {
     const d = await ensureTestSeed();

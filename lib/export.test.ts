@@ -13,7 +13,7 @@ function makeTournament(): Tournament {
     event_at: "2026-06-10T18:00:00.000Z",
     signups_public: false,
     show_sponsor: true,
-    show_venue: true,
+    venues: ["office"],
     updated_at: "2026-06-10T20:00:00.000Z",
     state: {
       viewRound: 2,

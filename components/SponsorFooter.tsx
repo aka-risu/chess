@@ -1,20 +1,21 @@
 // components/SponsorFooter.tsx — "Organized by / Hosted at" credits.
-// Visibility of each block is controlled by the organizer (tournament.show_sponsor
-// / show_venue), so it reads the current tournament and reacts to changes.
+// Each block is controlled by the organizer (tournament.show_sponsor for the
+// sponsor, tournament.venues for which hosts to credit), so it reads the current
+// tournament and reacts to changes.
 "use client";
 import { useEffect, useState } from "react";
 import { getTournament, subscribeTournament } from "@/lib/supabase";
-import { SPONSOR, sponsorInstagramUrl } from "@/lib/sponsor";
+import { SPONSOR, selectedVenues, sponsorInstagramUrl, type Venue } from "@/lib/sponsor";
 
 export function SponsorFooter() {
   const [showSponsor, setShowSponsor] = useState(false);
-  const [showVenue, setShowVenue] = useState(false);
+  const [venues, setVenues] = useState<Venue[]>([]);
 
   useEffect(() => {
     let alive = true;
     const load = async () => {
       const t = await getTournament();
-      if (alive && t) { setShowSponsor(t.show_sponsor); setShowVenue(t.show_venue); }
+      if (alive && t) { setShowSponsor(t.show_sponsor); setVenues(selectedVenues(t.venues)); }
     };
     load();
     const ch = subscribeTournament(load);
@@ -22,8 +23,7 @@ export function SponsorFooter() {
   }, []);
 
   const ig = sponsorInstagramUrl();
-  const venue = SPONSOR.venue;
-  const venueVisible = showVenue && !!venue.name;
+  const venueVisible = venues.length > 0;
 
   if (!showSponsor && !venueVisible) return null;
 
@@ -42,17 +42,23 @@ export function SponsorFooter() {
       {venueVisible && (
         <div className="venue-credit">
           <span className="kicker">Hosted at</span>
-          {venue.logo ? (
-            venue.link
-              // eslint-disable-next-line @next/next/no-img-element -- local asset
-              ? <a href={venue.link} target="_blank" rel="noopener noreferrer"><img src={venue.logo} alt={venue.name} className="sponsor-logo" /></a>
-              // eslint-disable-next-line @next/next/no-img-element -- local asset
-              : <img src={venue.logo} alt={venue.name} className="sponsor-logo" />
-          ) : (
-            venue.link
-              ? <a href={venue.link} target="_blank" rel="noopener noreferrer" style={{ color: "var(--ink)", fontWeight: 700 }}>{venue.name}</a>
-              : <span style={{ fontWeight: 700 }}>{venue.name}</span>
-          )}
+          <div className="venue-logos">
+            {venues.map((venue) => (
+              <div key={venue.id}>
+                {venue.logo ? (
+                  venue.link
+                    // eslint-disable-next-line @next/next/no-img-element -- local asset
+                    ? <a href={venue.link} target="_blank" rel="noopener noreferrer"><img src={venue.logo} alt={venue.name} className="sponsor-logo" /></a>
+                    // eslint-disable-next-line @next/next/no-img-element -- local asset
+                    : <img src={venue.logo} alt={venue.name} className="sponsor-logo" />
+                ) : (
+                  venue.link
+                    ? <a href={venue.link} target="_blank" rel="noopener noreferrer" style={{ color: "var(--ink)", fontWeight: 700 }}>{venue.name}</a>
+                    : <span style={{ fontWeight: 700 }}>{venue.name}</span>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

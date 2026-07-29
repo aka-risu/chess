@@ -154,7 +154,10 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(198,247,63
 }
 .sponsor .sponsor-logo { height: 40px; width: auto; max-width: 70%; opacity: .95; }
 .sponsor .venue-credit { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 4px; }
-.sponsor .venue-credit .sponsor-logo { height: 58px; max-width: 80%; }
+.sponsor .venue-credit .venue-logos {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px 20px;
+}
+.sponsor .venue-credit .sponsor-logo { height: 58px; max-width: 100%; }
 .sponsor-promo {
   font-size: 14px; color: var(--ink); background: rgba(212,255,82,.08);
   border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px;
