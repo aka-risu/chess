@@ -44,6 +44,28 @@ describe("deriveData", () => {
     expect(d.a.buch).toBe(2.0);
     expect(d.a.sb).toBe(1.25);
   });
+
+  it("computes the cumulative (progressive) score", () => {
+    const st = s(["a", "b", "c", "d"], [
+      [{ w: "a", b: "b", res: "w" }, { w: "c", b: "d", res: "w" }],
+      [{ w: "a", b: "c", res: "w" }, { w: "b", b: "d", res: "w" }],
+      [{ w: "a", b: "d", res: "b" }, { w: "b", b: "c", res: "w" }],
+    ]);
+    const d = deriveData(st);
+    // running scores -> a: 1,2,2 = 5   b: 0,1,2 = 3
+    expect(d.a.cum).toBe(5);
+    expect(d.b.cum).toBe(3);
+  });
+
+  it("counts a bye toward the cumulative score", () => {
+    const st = s(["a", "b", "c"], [
+      [{ w: "a", b: "b", res: "w" }, { w: "c", b: null, res: "bye" }],
+      [{ w: "a", b: "c", res: "w" }, { w: "b", b: null, res: "bye" }],
+    ]);
+    const d = deriveData(st);
+    // c is on 1 after R1 and still 1 after R2 -> 2
+    expect(d.c.cum).toBe(2);
+  });
 });
 
 describe("standings", () => {
@@ -52,6 +74,60 @@ describe("standings", () => {
     const rows = standings(st);
     expect(rows[0].id).toBe("a");
     expect(rows[1].id).toBe("b");
+  });
+
+  it("defaults to Buchholz when tiebreak is absent", () => {
+    const st = s(["a", "b", "c", "d"], [
+      [{ w: "a", b: "c", res: "w" }, { w: "b", b: "d", res: "w" }],
+      [{ w: "a", b: "d", res: "b" }, { w: "b", b: "c", res: "b" }],
+    ]);
+    expect(st.tiebreak).toBeUndefined();
+    const rows = standings(st);
+    expect(rows.map((r) => r.id).slice(0, 2).sort()).toEqual(["a", "b"]);
+  });
+
+  it("ranks by cumulative ahead of Buchholz when tiebreak is cumulative", () => {
+    // Real regression fixture: the 2026-08-02 event. Omri and Rob both finish 3/4,
+    // each losing only to the champion. Buchholz favours Omri (10 v 9); cumulative
+    // favours Rob (9 v 8) because Rob led going into the final round.
+    const ids = ["max", "omri", "rob", "shruthi", "mayank", "karim", "ty", "finley", "caleb", "ibra", "ian", "curtis"];
+    const schedule: TournamentState["schedule"] = [
+      [
+        { w: "max", b: "ian", res: "w" }, { w: "ty", b: "curtis", res: "w" },
+        { w: "mayank", b: "shruthi", res: "w" }, { w: "omri", b: "finley", res: "w" },
+        { w: "karim", b: "rob", res: "b" }, { w: "ibra", b: "caleb", res: "w" },
+      ],
+      [
+        { w: "mayank", b: "omri", res: "b" }, { w: "max", b: "ty", res: "w" },
+        { w: "rob", b: "ibra", res: "w" }, { w: "caleb", b: "curtis", res: "w" },
+        { w: "ian", b: "shruthi", res: "b" }, { w: "finley", b: "karim", res: "b" },
+      ],
+      [
+        { w: "omri", b: "max", res: "b" }, { w: "rob", b: "mayank", res: "w" },
+        { w: "ty", b: "ibra", res: "w" }, { w: "shruthi", b: "karim", res: "w" },
+        { w: "caleb", b: "ian", res: "w" }, { w: "curtis", b: "finley", res: "b" },
+      ],
+      [
+        { w: "max", b: "rob", res: "w" }, { w: "omri", b: "ty", res: "w" },
+        { w: "shruthi", b: "caleb", res: "w" }, { w: "ibra", b: "mayank", res: "b" },
+        { w: "karim", b: "curtis", res: "w" }, { w: "finley", b: "ian", res: "w" },
+      ],
+    ];
+    const byBuch = s(ids, schedule);
+    const d = deriveData(byBuch);
+    expect(d.omri.score).toBe(3);
+    expect(d.rob.score).toBe(3);
+    expect(d.omri.buch).toBe(10);
+    expect(d.rob.buch).toBe(9);
+    expect(d.omri.cum).toBe(8);
+    expect(d.rob.cum).toBe(9);
+
+    // Default (Buchholz): Omri 2nd, Rob 3rd
+    expect(standings(byBuch).map((r) => r.id).slice(0, 3)).toEqual(["max", "omri", "rob"]);
+
+    // Cumulative: Rob 2nd, Omri 3rd
+    const byCum: TournamentState = { ...s(ids, schedule), tiebreak: "cumulative" };
+    expect(standings(byCum).map((r) => r.id).slice(0, 3)).toEqual(["max", "rob", "omri"]);
   });
 });
 

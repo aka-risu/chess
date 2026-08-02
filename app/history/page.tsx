@@ -164,6 +164,7 @@ export default function HistoryPage() {
                       rows={standings(e.state)}
                       playedRounds={e.state.schedule.length}
                       champion
+                      tiebreak={e.state.tiebreak}
                     />
                   ) : (
                     <div className="stack" style={{ gap: 4 }}>

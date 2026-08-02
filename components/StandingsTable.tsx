@@ -1,9 +1,12 @@
 // components/StandingsTable.tsx
-import type { StandingRow } from "@/lib/types";
+import type { StandingRow, TournamentState } from "@/lib/types";
 
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
-export function StandingsTable({ rows, playedRounds, champion }: { rows: StandingRow[]; playedRounds: number; champion: boolean }) {
+export function StandingsTable({ rows, playedRounds, champion, tiebreak }: { rows: StandingRow[]; playedRounds: number; champion: boolean; tiebreak?: TournamentState["tiebreak"] }) {
+  // Events on the cumulative tiebreak show the Cum column, else the ranking looks
+  // arbitrary — a player can sit above someone with a higher Buchholz.
+  const showCum = tiebreak === "cumulative";
   const mark = (m?: string) =>
     m === "+" ? "1" : m === "-" ? "0" : m === "=" ? "½" : m === "bye" ? "B" : "·";
   return (
@@ -14,7 +17,9 @@ export function StandingsTable({ rows, playedRounds, champion }: { rows: Standin
             <th style={{ textAlign: "right", padding: 8 }}>#</th>
             <th style={{ textAlign: "left", padding: 8 }}>Player</th>
             {Array.from({ length: playedRounds }, (_, i) => <th key={i} style={{ padding: 6 }}>R{i + 1}</th>)}
-            <th style={{ padding: 8 }}>Pts</th><th style={{ padding: 8 }}>Buch</th><th style={{ padding: 8 }}>SB</th>
+            <th style={{ padding: 8 }}>Pts</th>
+            {showCum && <th style={{ padding: 8 }}>Cum</th>}
+            <th style={{ padding: 8 }}>Buch</th><th style={{ padding: 8 }}>SB</th>
           </tr>
         </thead>
         <tbody>
@@ -29,6 +34,7 @@ export function StandingsTable({ rows, playedRounds, champion }: { rows: Standin
                 <td key={r} className="num" style={{ textAlign: "center", padding: 6, color: "var(--ink-soft)" }}>{mark(p.results[r])}</td>
               ))}
               <td className="num" style={{ textAlign: "center", padding: 8, fontWeight: 800, color: "var(--accent)" }}>{fmt(p.score)}</td>
+              {showCum && <td className="num" style={{ textAlign: "center", padding: 8, color: "var(--ink-soft)" }}>{fmt(p.cum)}</td>}
               <td className="num" style={{ textAlign: "center", padding: 8, color: "var(--ink-soft)" }}>{fmt(p.buch)}</td>
               <td className="num" style={{ textAlign: "center", padding: 8, color: "var(--ink-soft)" }}>{fmt(p.sb)}</td>
             </tr>

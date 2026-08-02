@@ -22,6 +22,7 @@ export function deriveData(state: TournamentState, uptoRound?: number): Record<I
       drew: [],
       buch: 0,
       sb: 0,
+      cum: 0,
     };
   }
 
@@ -83,6 +84,12 @@ export function deriveData(state: TournamentState, uptoRound?: number): Record<I
         }
       }
     }
+
+    // Cumulative (progressive): bank every player's running score after each round.
+    for (const p of state.players) {
+      const pd = d[p.id];
+      if (pd) pd.cum += pd.score;
+    }
   }
 
   // Compute Buchholz and Sonneborn-Berger
@@ -101,10 +108,12 @@ export function deriveData(state: TournamentState, uptoRound?: number): Record<I
 export function standings(state: TournamentState): StandingRow[] {
   const d = deriveData(state);
   const playerMap = new Map(state.players.map((p) => [p.id, p.name]));
+  const cumulative = state.tiebreak === "cumulative";
   return state.players
     .map((p) => ({ ...d[p.id], name: playerMap.get(p.id) ?? p.id, out: p.out }))
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
+      if (cumulative && b.cum !== a.cum) return b.cum - a.cum;
       if (b.buch !== a.buch) return b.buch - a.buch;
       if (b.sb !== a.sb) return b.sb - a.sb;
       return a.name.localeCompare(b.name);

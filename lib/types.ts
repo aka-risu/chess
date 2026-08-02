@@ -42,6 +42,13 @@ export interface TournamentState {
   schedule: Round[];
   viewRound: number;
   uid?: string; // stable id for this tournament instance (used as history key)
+  /**
+   * Tiebreak rule for this event only. Absent = "buchholz" (the app default).
+   * "cumulative" ranks by progressive score — the running total after each
+   * round, summed — which rewards leading early. Set per-event; reset() in
+   * app/admin/page.tsx writes a fresh state, so it never carries over.
+   */
+  tiebreak?: "buchholz" | "cumulative";
 }
 
 export type TournamentStatus = "setup" | "active" | "finished";
@@ -105,6 +112,7 @@ export interface Derived {
   drew: Id[];
   buch: number; // Buchholz
   sb: number; // Sonneborn–Berger
+  cum: number; // Cumulative (progressive) score — running score summed per round
 }
 
 export interface StandingRow extends Derived {

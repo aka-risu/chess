@@ -78,7 +78,7 @@ export default function ResultsPage() {
 
       <h2 className="section" style={{ marginTop: 24 }}>Standings</h2>
       <p className="muted">Points · Buchholz · Sonneborn–Berger</p>
-      <StandingsTable rows={rows} playedRounds={t.state.schedule.length} champion={t.status === "finished" || done} />
+      <StandingsTable rows={rows} playedRounds={t.state.schedule.length} champion={t.status === "finished" || done} tiebreak={t.state.tiebreak} />
 
       <button className="btn block ghost" style={{ marginTop: 20 }}
         onClick={() => downloadText(csvFilename(t), tournamentCsv(t))}>⬇ Download results (CSV)</button>
